@@ -1,124 +1,52 @@
-import nodemailer from 'nodemailer';
+import nodemailer from "nodemailer";
 
-// Create reusable transporter
-const transporter = nodemailer.createTransporter({
-  service: 'gmail',
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD,
-  },
-});
+let transporter;
 
-// Send registration email with token
-export const sendRegistrationEmail = async (email, name, registrationToken) => {
-  const registrationLink = `${process.env.CLIENT_URL}/register?token=${registrationToken}`;
+const getTransporter = () => {
+  if (transporter) return transporter;
 
-  const mailOptions = {
-    from: `"HR Team" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'Welcome! Complete Your Registration',
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #1890ff; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .button {
-              display: inline-block;
-              background: #1890ff;
-              color: white;
-              padding: 12px 30px;
-              text-decoration: none;
-              border-radius: 5px;
-              margin: 20px 0;
-            }
-            .footer { margin-top: 20px; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Welcome to Our Company!</h1>
-            </div>
-            <div class="content">
-              <p>Hello ${name},</p>
-              <p>We're excited to have you join our team! Please click the button below to complete your registration:</p>
+  const { EMAIL_HOST, EMAIL_PORT, EMAIL_SECURE, EMAIL_USER, EMAIL_PASS } = process.env;
 
-              <div style="text-align: center;">
-                <a href="${registrationLink}" class="button">Complete Registration</a>
-              </div>
-
-              <p><strong>Important:</strong> This link will expire in 3 hours.</p>
-
-              <p>If the button doesn't work, copy and paste this link into your browser:</p>
-              <p style="word-break: break-all; color: #1890ff;">${registrationLink}</p>
-
-              <div class="footer">
-                <p>If you didn't expect this email, please ignore it.</p>
-                <p>Best regards,<br>HR Team</p>
-              </div>
-            </div>
-          </div>
-        </body>
-      </html>
-    `,
-  };
-
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Registration email sent: ' + info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('Email sending failed:', error);
-    throw error;
+  if (!EMAIL_USER || !EMAIL_PASS) {
+    throw new Error("Email credentials are missing. Please set EMAIL_USER and EMAIL_PASS.");
   }
+
+  if (EMAIL_HOST) {
+    transporter = nodemailer.createTransport({
+      host: EMAIL_HOST,
+      port: Number(EMAIL_PORT) || 587,
+      secure: EMAIL_SECURE === "true",
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+    });
+  } else {
+    transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: EMAIL_USER, pass: EMAIL_PASS }
+    });
+  }
+
+  return transporter;
 };
 
-// Send notification reminder email
-export const sendNotificationEmail = async (email, name, message) => {
-  const mailOptions = {
-    from: `"HR Team" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: 'Action Required: Next Steps for Your Onboarding',
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #52c41a; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Onboarding Update</h1>
-            </div>
-            <div class="content">
-              <p>Hello ${name},</p>
-              <p>${message}</p>
-              <p>Please log in to your account to complete the next steps.</p>
-              <p>Best regards,<br>HR Team</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `,
-  };
-
-  try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Notification email sent: ' + info.messageId);
-    return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('Email sending failed:', error);
-    throw error;
+export const sendEmail = async ({ to, subject, html }) => {
+  if (!to || !subject || !html) {
+    throw new Error("Email, subject, and html body are required to send an email.");
   }
+  const { EMAIL_USER, EMAIL_FROM } = process.env;
+  const fromAddress = EMAIL_FROM || `HR Department <${EMAIL_USER}>`;
+  await getTransporter().sendMail({
+    from: fromAddress,
+    to,
+    subject,
+    html
+  });
 };
 
-export default transporter;
+export const sendRegistrationEmail = async (to, link) =>
+  sendEmail({
+    to,
+    subject: "Employee Registration Link",
+    html: `<p>Welcome! Click below to register:</p>
+           <a href="${link}">${link}</a>
+           <p>This link will expire in 3 hours.</p>`
+  });
