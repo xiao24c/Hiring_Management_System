@@ -1,7 +1,9 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
-import Token from "../models/Token.js";
+import RegistrationToken from "../models/RegistrationToken.js";
+import OnboardingApplication from "../models/OnboardingApplication.js";
+import VisaStatus from "../models/VisaStatus.js";
 
 const router = express.Router();
 
@@ -10,13 +12,28 @@ router.post("/register", async (req, res) => {
   try {
     const { username, email, password, token } = req.body;
 
-    const existingToken = await Token.findOne({ email, token, used: false });
+    const existingToken = await RegistrationToken.findOne({ email, token, used: false });
     if (!existingToken) return res.status(400).json({ message: "Invalid or expired token" });
 
     if (existingToken.expiresAt < Date.now())
       return res.status(400).json({ message: "Token expired" });
 
-    const user = await User.create({ username, email, password });
+    const user = new User({ username, email, role: "employee" });
+    await user.setPassword(password);
+    await user.save();
+
+    await OnboardingApplication.findOneAndUpdate(
+      { user: user._id },
+      { user: user._id, "formData.personalInfo.email": email },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    await VisaStatus.findOneAndUpdate(
+      { user: user._id },
+      { user: user._id },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
     existingToken.used = true;
     existingToken.usedAt = new Date();
     existingToken.usedBy = user._id;
@@ -58,7 +75,7 @@ router.get("/me", async (req, res) => {
     if (!token) return res.status(401).json({ message: "Unauthorized" });
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select("-password");
+    const user = await User.findById(decoded.id).select("-passwordHash");
     res.json(user);
   } catch (err) {
     res.status(401).json({ message: "Invalid token" });

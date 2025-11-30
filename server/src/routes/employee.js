@@ -2,9 +2,10 @@ import express from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import User from "../models/User.js";
 import { protect } from "../middleware/auth.js";
 import { roleCheck } from "../middleware/roleCheck.js";
+import OnboardingApplication from "../models/OnboardingApplication.js";
+import VisaStatus from "../models/VisaStatus.js";
 
 const router = express.Router();
 
@@ -46,12 +47,6 @@ const DOCUMENT_LABELS = {
   other: "Supporting Document"
 };
 
-const createValidationError = (message) => {
-  const error = new Error(message);
-  error.statusCode = 400;
-  return error;
-};
-
 const normalizeGender = (value) => {
   if (!value) return null;
   const normalized = value.toLowerCase();
@@ -73,79 +68,72 @@ const normalizeWorkAuth = (value) => {
   return value;
 };
 
-const normalizeCitizenship = (value) => {
-  if (!value) return null;
-  const normalized = value.toLowerCase();
-  if (normalized.includes("citizen")) return "citizen";
-  if (normalized.includes("green")) return "green_card";
-  return "non_resident";
+const ensureOnboardingRecord = async (userId, email) => {
+  const defaults = {
+    user: userId,
+    formData: { personalInfo: { email } }
+  };
+  const record = await OnboardingApplication.findOneAndUpdate(
+    { user: userId },
+    { $setOnInsert: defaults },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+  return record;
 };
 
-const getDocuments = (user) => (Array.isArray(user.documents) ? user.documents : []);
-
-const getDocumentByType = (user, type) =>
-  getDocuments(user).find((doc) => doc.type === type);
-
-const requiresOpt = (user) => {
-  const workAuth =
-    user.profile?.employment?.workAuthorization ||
-    user.onboarding?.formData?.employment?.workAuthorization;
-  return workAuth === "f1_opt";
+const ensureVisaRecord = async (userId) => {
+  const record = await VisaStatus.findOneAndUpdate(
+    { user: userId },
+    { $setOnInsert: { user: userId } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+  return record;
 };
 
-const buildVisaSummary = (user) => {
-  if (!requiresOpt(user)) {
-    return {
-      requiresOpt: false,
-      currentStep: "not_applicable",
-      documents: []
-    };
+const buildVisaSummary = (visaRecord) => {
+  if (!visaRecord || !visaRecord.requiresOpt) {
+    return { requiresOpt: false, currentStep: "not_applicable", documents: [] };
   }
 
-  const documents = VISA_TYPES.map((type) => {
-    const doc = getDocumentByType(user, type);
+  const docs = VISA_TYPES.map((type) => {
+    const entry = getVisaDocuments(visaRecord).find((doc) => doc.type === type) || {};
     return {
       type,
       label: DOCUMENT_LABELS[type],
-      status: doc?.status || "not_uploaded",
-      url: doc?.url || null,
-      feedback: doc?.feedback || null,
-      reviewedAt: doc?.reviewedAt || null
+      status: entry.status || "not_uploaded",
+      url: entry.url || null,
+      feedback: entry.feedback || null,
+      reviewedAt: entry.reviewedAt || null
     };
   });
 
   let currentStep = "opt_receipt";
   let message = "Please upload your OPT Receipt.";
 
-  for (let i = 0; i < documents.length; i++) {
-    const entry = documents[i];
-    if (entry.status === "not_uploaded") {
-      currentStep = entry.type;
-      message = `Please upload ${entry.label}.`;
+  for (let i = 0; i < docs.length; i++) {
+    const doc = docs[i];
+    if (doc.status === "not_uploaded") {
+      currentStep = doc.type;
+      message = `Please upload ${doc.label}.`;
       break;
     }
-    if (entry.status === "pending") {
-      currentStep = entry.type;
-      message = `Waiting for HR to review your ${entry.label}.`;
+    if (doc.status === "pending") {
+      currentStep = doc.type;
+      message = `Waiting for HR to review your ${doc.label}.`;
       break;
     }
-    if (entry.status === "rejected") {
-      currentStep = entry.type;
-      message = entry.feedback || `${entry.label} was rejected. Please upload an updated version.`;
+    if (doc.status === "rejected") {
+      currentStep = doc.type;
+      message = doc.feedback || `${doc.label} was rejected. Please upload an updated version.`;
       break;
     }
-    if (i === documents.length - 1 && entry.status === "approved") {
+    if (i === docs.length - 1 && doc.status === "approved") {
       currentStep = "completed";
       message = "All documents have been approved.";
     }
   }
 
-  return {
-    requiresOpt: true,
-    currentStep,
-    message,
-    documents
-  };
+  return { requiresOpt: true, currentStep, message, documents: docs };
 };
 
 const sanitizeOnboardingPayload = (payload, email) => {
@@ -156,8 +144,7 @@ const sanitizeOnboardingPayload = (payload, email) => {
     copy.personalInfo = {
       ...copy.personalInfo,
       email,
-      gender: normalizeGender(copy.personalInfo.gender),
-      citizenshipStatus: normalizeCitizenship(copy.personalInfo.citizenshipStatus)
+      gender: normalizeGender(copy.personalInfo.gender)
     };
   }
 
@@ -171,19 +158,26 @@ const sanitizeOnboardingPayload = (payload, email) => {
   return copy;
 };
 
+const requiresOpt = (formData) => formData?.employment?.workAuthorization === "f1_opt";
+
+const getVisaDocuments = (visaRecord) => (Array.isArray(visaRecord?.documents) ? visaRecord.documents : []);
+
 router.use(protect);
 router.use(roleCheck(["employee", "hr"]));
 
 router.get("/profile", async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("-password");
+    const onboarding = await ensureOnboardingRecord(req.user._id, req.user.email);
+    const visaRecord = await ensureVisaRecord(req.user._id);
+    const approvedProfile = onboarding.status === "approved" ? onboarding.formData : null;
+
     res.json({
-      profile: user.profile || null,
-      onboardingStatus: user.onboarding?.status || "never_submitted",
-      onboardingApplication: user.onboarding?.formData || null,
-      onboardingFeedback: user.onboarding?.feedback || null,
-      documents: user.documents || [],
-      visaStatus: buildVisaSummary(user)
+      profile: approvedProfile,
+      onboardingStatus: onboarding.status,
+      onboardingApplication: onboarding.formData,
+      onboardingFeedback: onboarding.feedback,
+      documents: onboarding.documents || [],
+      visaStatus: buildVisaSummary(visaRecord)
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -192,31 +186,32 @@ router.get("/profile", async (req, res) => {
 
 router.post("/onboarding", async (req, res) => {
   try {
-    const user = await User.findById(req.user._id);
-    if (user.onboarding?.status === "approved") {
+    const onboarding = await ensureOnboardingRecord(req.user._id, req.user.email);
+    if (onboarding.status === "approved") {
       return res.status(400).json({ message: "Onboarding already approved." });
     }
 
-    const payload = sanitizeOnboardingPayload(req.body, user.email);
+    const payload = sanitizeOnboardingPayload(req.body, req.user.email);
     if (!payload?.personalInfo?.firstName || !payload?.personalInfo?.lastName) {
       return res.status(400).json({ message: "First name and last name are required." });
     }
 
-    user.onboarding.formData = payload;
-    user.onboarding.status = "pending";
-    user.onboarding.submittedAt = new Date();
-    user.onboarding.feedback = undefined;
+    onboarding.formData = payload;
+    onboarding.status = "pending";
+    onboarding.submittedAt = new Date();
+    onboarding.feedback = undefined;
+    await onboarding.save();
 
-    const isOpt = payload?.employment?.workAuthorization === "f1_opt";
-    user.visaWorkflow.optRequired = Boolean(isOpt);
-    user.visaWorkflow.currentStep = isOpt ? "opt_receipt" : "not_applicable";
+    const visaRecord = await ensureVisaRecord(req.user._id);
+    const needsOpt = requiresOpt(payload);
+    visaRecord.requiresOpt = needsOpt;
+    visaRecord.currentStep = needsOpt ? "opt_receipt" : "not_applicable";
+    if (!needsOpt) {
+      visaRecord.documents = [];
+    }
+    await visaRecord.save();
 
-    await user.save();
-
-    res.json({
-      message: "Onboarding application submitted.",
-      onboardingStatus: user.onboarding.status
-    });
+    res.json({ message: "Onboarding application submitted.", onboardingStatus: onboarding.status });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -224,41 +219,38 @@ router.post("/onboarding", async (req, res) => {
 
 router.put("/profile", async (req, res) => {
   try {
-    const updates = req.body;
-    const user = await User.findById(req.user._id);
-
-    if (!user.profile) {
-      return res.status(400).json({ message: "Profile is not available yet." });
+    const onboarding = await ensureOnboardingRecord(req.user._id, req.user.email);
+    if (onboarding.status !== "approved") {
+      return res.status(400).json({ message: "Profile cannot be edited until onboarding is approved." });
     }
 
-    const source = user.profile?.toObject ? user.profile.toObject() : { ...user.profile };
-    const profile = { ...source };
-    const sections = ["personalInfo", "address", "contactInfo", "employment", "reference", "emergencyContacts"];
-    sections.forEach((section) => {
+    const updates = sanitizeOnboardingPayload(req.body, req.user.email);
+    const baseForm =
+      onboarding.formData && onboarding.formData.toObject
+        ? onboarding.formData.toObject()
+        : onboarding.formData || {};
+    const updatedForm = { ...baseForm };
+    ["personalInfo", "address", "contactInfo", "employment", "reference", "emergencyContacts"].forEach((section) => {
       if (updates[section] !== undefined) {
-        profile[section] = updates[section];
+        updatedForm[section] = updates[section];
       }
     });
 
-    profile.personalInfo = {
-      ...(profile.personalInfo || {}),
-      email: user.email,
-      gender: normalizeGender(profile.personalInfo?.gender)
-    };
+    onboarding.formData = updatedForm;
+    await onboarding.save();
 
-    if (profile.employment) {
-      profile.employment.workAuthorization = normalizeWorkAuth(profile.employment.workAuthorization);
-      const isOpt = profile.employment.workAuthorization === "f1_opt";
-      user.visaWorkflow.optRequired = Boolean(isOpt);
-      if (!isOpt) {
-        user.visaWorkflow.currentStep = "not_applicable";
+    if (updates.employment) {
+      const visaRecord = await ensureVisaRecord(req.user._id);
+      const needsOpt = requiresOpt(updatedForm);
+      visaRecord.requiresOpt = needsOpt;
+      visaRecord.currentStep = needsOpt ? visaRecord.currentStep || "opt_receipt" : "not_applicable";
+      if (!needsOpt) {
+        visaRecord.documents = [];
       }
+      await visaRecord.save();
     }
 
-    user.profile = profile;
-    await user.save();
-
-    res.json({ message: "Profile updated.", profile: user.profile });
+    res.json({ message: "Profile updated.", profile: onboarding.formData });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -266,8 +258,8 @@ router.put("/profile", async (req, res) => {
 
 router.get("/visa-status", async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("documents profile onboarding");
-    res.json(buildVisaSummary(user));
+    const visaRecord = await ensureVisaRecord(req.user._id);
+    res.json(buildVisaSummary(visaRecord));
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -275,27 +267,23 @@ router.get("/visa-status", async (req, res) => {
 
 router.get("/documents", async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("documents");
-    res.json({ documents: user.documents || [] });
+    const onboarding = await ensureOnboardingRecord(req.user._id, req.user.email);
+    res.json({ documents: onboarding.documents || [] });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-const ensureVisaUploadOrder = (user, type) => {
+const ensureVisaUploadOrder = (visaRecord, type) => {
   const index = VISA_TYPES.indexOf(type);
-  if (index === -1) return;
-
-  if (!requiresOpt(user)) {
-    throw createValidationError("Visa documents are only required for OPT employees.");
-  }
+  if (index === -1 || !visaRecord.requiresOpt) return;
 
   for (let i = 0; i < index; i++) {
-    const previous = getDocumentByType(user, VISA_TYPES[i]);
+    const previous = getVisaDocuments(visaRecord).find((doc) => doc.type === VISA_TYPES[i]);
     if (!previous || previous.status !== "approved") {
-      throw createValidationError(
-        `Please wait for ${DOCUMENT_LABELS[VISA_TYPES[i]]} to be approved first.`
-      );
+      const error = new Error(`Please wait for ${DOCUMENT_LABELS[VISA_TYPES[i]]} to be approved first.`);
+      error.statusCode = 400;
+      throw error;
     }
   }
 };
@@ -310,44 +298,70 @@ router.post("/documents/:type", upload.single("file"), async (req, res) => {
       return res.status(400).json({ message: "File is required." });
     }
 
-    const user = await User.findById(req.user._id);
-    ensureVisaUploadOrder(user, type);
-
-    const category = VISA_TYPES.includes(type) ? "visa" : "onboarding";
-    const status = VISA_TYPES.includes(type) ? "pending" : "uploaded";
-    if (VISA_TYPES.includes(type)) {
-      user.visaWorkflow.currentStep = type;
-    }
-
     const fileUrl = `/uploads/${req.file.filename}`;
-    const documents = getDocuments(user);
     const payload = {
       type,
       label: DOCUMENT_LABELS[type],
-      category,
       url: fileUrl,
       fileName: req.file.filename,
       originalName: req.file.originalname,
       mimeType: req.file.mimetype,
       size: req.file.size,
-      status,
-      uploadedAt: new Date(),
-      feedback: undefined,
-      reviewer: undefined,
-      reviewedAt: undefined
+      uploadedAt: new Date()
     };
 
-    const index = documents.findIndex((doc) => doc.type === type);
-    if (index > -1) {
-      documents[index] = { ...documents[index], ...payload };
-    } else {
-      documents.push(payload);
+    if (VISA_TYPES.includes(type)) {
+      const visaRecord = await ensureVisaRecord(req.user._id);
+      if (!visaRecord.requiresOpt) {
+        return res.status(400).json({ message: "Visa documents are only required for OPT employees." });
+      }
+
+      ensureVisaUploadOrder(visaRecord, type);
+
+      const documents = getVisaDocuments(visaRecord);
+      const existingIndex = documents.findIndex((doc) => doc.type === type);
+      const docPayload = {
+        ...payload,
+        category: "visa",
+        status: "pending",
+        feedback: undefined,
+        reviewedAt: undefined,
+        reviewer: undefined
+      };
+      if (existingIndex > -1) {
+        documents[existingIndex] = { ...documents[existingIndex], ...docPayload };
+      } else {
+        documents.push(docPayload);
+      }
+      visaRecord.documents = documents;
+      visaRecord.currentStep = type;
+      await visaRecord.save();
+
+      return res.json({ message: "Document uploaded.", document: docPayload });
     }
 
-    user.documents = documents;
-    await user.save();
+    const onboarding = await ensureOnboardingRecord(req.user._id, req.user.email);
+    const documents = Array.isArray(onboarding.documents) ? onboarding.documents : [];
+    const existingIndex = documents.findIndex((doc) => doc.type === type);
+    const docPayload = {
+      ...payload,
+      category: "onboarding",
+      status: "uploaded"
+    };
+    if (type === "profile_picture") {
+      onboarding.formData = onboarding.formData || {};
+      onboarding.formData.personalInfo = onboarding.formData.personalInfo || {};
+      onboarding.formData.personalInfo.profilePicture = fileUrl;
+    }
+    if (existingIndex > -1) {
+      documents[existingIndex] = { ...documents[existingIndex], ...docPayload };
+    } else {
+      documents.push(docPayload);
+    }
+    onboarding.documents = documents;
+    await onboarding.save();
 
-    res.json({ message: "Document uploaded.", document: payload });
+    res.json({ message: "Document uploaded.", document: docPayload });
   } catch (err) {
     res.status(err.statusCode || 500).json({ message: err.message });
   }

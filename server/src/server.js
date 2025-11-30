@@ -2,13 +2,17 @@ import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
 import path from "path";
+import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
 
 import authRoutes from "./routes/auth.js";
 import hrRoutes from "./routes/hr.js";
 import employeeRoutes from "./routes/employee.js";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 connectDB();
 
 const app = express();
@@ -36,5 +40,5 @@ app.use((err, _req, res, _next) => {
   res.status(err.statusCode || 500).json({ message: err.message || "Server error" });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

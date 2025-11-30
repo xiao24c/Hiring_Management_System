@@ -1,7 +1,9 @@
 import express from "express";
 import crypto from "crypto";
-import Token from "../models/Token.js";
+import RegistrationToken from "../models/RegistrationToken.js";
 import User from "../models/User.js";
+import OnboardingApplication from "../models/OnboardingApplication.js";
+import VisaStatus from "../models/VisaStatus.js";
 import { protect } from "../middleware/auth.js";
 import { roleCheck } from "../middleware/roleCheck.js";
 import { sendRegistrationEmail, sendEmail } from "../utils/emailService.js";
@@ -15,121 +17,27 @@ const VISA_FLOW = [
   { type: "i_20", label: "I-20" }
 ];
 
-const buildRegex = (value) => new RegExp(value, "i");
-
-const getPersonalInfoSource = (user) =>
-  user.profile?.personalInfo || user.onboarding?.formData?.personalInfo || {};
-
-const getEmploymentSource = (user) =>
-  user.profile?.employment || user.onboarding?.formData?.employment || {};
-
-const getLegalName = (user) => {
-  const info = getPersonalInfoSource(user);
-  if (!info.firstName && !info.lastName) return user.username;
-  return [info.firstName, info.middleName, info.lastName].filter(Boolean).join(" ");
+const getLegalName = (application, fallback) => {
+  const info = application?.formData?.personalInfo || {};
+  const legal = [info.firstName, info.middleName, info.lastName].filter(Boolean).join(" ");
+  if (info.preferredName) return info.preferredName;
+  if (!legal) return fallback;
+  return legal;
 };
 
-const getDocuments = (user) => (Array.isArray(user.documents) ? user.documents : []);
-
-const getDocumentByType = (user, type) =>
-  getDocuments(user).find((doc) => doc.type === type);
-
-const deriveVisaProgress = (user) => {
-  const employment = getEmploymentSource(user);
-  const requiresOpt = employment?.workAuthorization === "f1_opt";
-  if (!requiresOpt) {
-    return {
-      requiresOpt: false,
-      currentStep: "not_applicable",
-      completed: true,
-      documents: []
-    };
-  }
-
-  const documents = VISA_FLOW.map((item) => ({
-    label: item.label,
-    type: item.type,
-    document: getDocumentByType(user, item.type)
-  }));
-
-  for (let i = 0; i < documents.length; i++) {
-    const entry = documents[i];
-    if (!entry.document) {
-      return {
-        requiresOpt: true,
-        currentStep: entry.type,
-        completed: false,
-        nextStep: `Employee must upload ${entry.label}`,
-        action: "notify",
-        pendingDocument: null,
-        documents
-      };
-    }
-
-    if (entry.document.status === "pending") {
-      return {
-        requiresOpt: true,
-        currentStep: entry.type,
-        completed: false,
-        nextStep: `Waiting for HR to review ${entry.label}`,
-        action: "review",
-        pendingDocument: entry.document,
-        documents
-      };
-    }
-
-    if (entry.document.status === "rejected") {
-      return {
-        requiresOpt: true,
-        currentStep: entry.type,
-        completed: false,
-        nextStep: entry.document.feedback || `${entry.label} was rejected. Employee must resubmit.`,
-        action: "notify",
-        pendingDocument: entry.document,
-        documents
-      };
-    }
-  }
-
-  return {
-    requiresOpt: true,
-    currentStep: "completed",
-    completed: true,
-    nextStep: "All documents have been approved.",
-    action: null,
-    pendingDocument: null,
-    documents
-  };
-};
-
-const computeDaysRemaining = (user) => {
-  const endDate =
-    user.profile?.employment?.endDate ||
-    user.onboarding?.formData?.employment?.endDate;
+const computeDaysRemaining = (application) => {
+  const endDate = application?.formData?.employment?.endDate;
   if (!endDate) return null;
   const diffMs = new Date(endDate).getTime() - Date.now();
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 };
 
-const buildEmployeeSummary = (user) => {
-  const info = getPersonalInfoSource(user);
-  const employment = getEmploymentSource(user);
-  const contactInfo = user.profile?.contactInfo || user.onboarding?.formData?.contactInfo;
-
-  return {
-    id: user._id,
-    name: getLegalName(user),
-    ssn:
-      info.ssn || user.onboarding?.formData?.personalInfo?.ssn || "N/A",
-    workAuthorization: employment?.workAuthorization || "N/A",
-    phone:
-      contactInfo?.cellPhone ||
-      contactInfo?.workPhone ||
-      user.profile?.contactInfo?.cellPhone ||
-      "N/A",
-    email: user.email,
-    onboardingStatus: user.onboarding?.status || "never_submitted"
-  };
+const loadOnboardingMap = async (userIds) => {
+  const records = await OnboardingApplication.find({ user: { $in: userIds } }).lean();
+  return records.reduce((acc, record) => {
+    acc[record.user.toString()] = record;
+    return acc;
+  }, {});
 };
 
 router.post("/token", protect, roleCheck(["hr"]), async (req, res) => {
@@ -144,7 +52,7 @@ router.post("/token", protect, roleCheck(["hr"]), async (req, res) => {
     const baseUrl = (process.env.CLIENT_URL || "http://localhost:5173").replace(/\/$/, "");
     const registrationLink = `${baseUrl}/register?token=${tokenValue}&email=${encodeURIComponent(email)}`;
 
-    const token = await Token.create({
+    const token = await RegistrationToken.create({
       email,
       name,
       token: tokenValue,
@@ -153,14 +61,16 @@ router.post("/token", protect, roleCheck(["hr"]), async (req, res) => {
       createdBy: req.user._id
     });
 
-    await sendRegistrationEmail(email, registrationLink);
+    // await sendRegistrationEmail(email, registrationLink);
+    // Temporarily disable automatic email delivery until SMTP credentials are resolved.
 
     res.json({
-      message: "Registration link sent",
+      message: "Registration link generated",
       token: {
         id: token._id,
         email: token.email,
         name: token.name,
+        value: token.token,
         expiresAt: token.expiresAt,
         registrationLink: token.registrationLink
       }
@@ -172,19 +82,21 @@ router.post("/token", protect, roleCheck(["hr"]), async (req, res) => {
 
 router.get("/tokens", protect, roleCheck(["hr"]), async (req, res) => {
   try {
-    const tokens = await Token.find()
+    const tokens = await RegistrationToken.find()
       .sort({ createdAt: -1 })
-      .populate("usedBy", "email onboarding.status profile.personalInfo.firstName profile.personalInfo.lastName")
+      .populate("usedBy", "email username")
       .lean();
+
+    const usedIds = tokens.map((token) => token.usedBy?._id).filter(Boolean);
+    const onboardingMap = await loadOnboardingMap(usedIds);
 
     const history = tokens.map((token) => {
       let status = "active";
       if (token.used) status = "used";
       else if (token.expiresAt < new Date()) status = "expired";
 
-      const usedByUser = token.usedBy;
-      const onboardingSubmitted =
-        usedByUser?.onboarding?.status && usedByUser.onboarding.status !== "never_submitted";
+      const onboarding = token.usedBy ? onboardingMap[token.usedBy._id.toString()] : null;
+      const onboardingSubmitted = onboarding?.status && onboarding.status !== "never_submitted";
 
       return {
         id: token._id,
@@ -208,29 +120,44 @@ router.get("/tokens", protect, roleCheck(["hr"]), async (req, res) => {
 router.get("/employees", protect, roleCheck(["hr"]), async (req, res) => {
   try {
     const { search } = req.query;
-    const filter = { role: "employee" };
+    const userFilter = { role: "employee" };
+    const users = await User.find(userFilter).select("username email role").lean();
+    const onboardingRecords = await OnboardingApplication.find({ user: { $in: users.map((u) => u._id) } }).lean();
+    const onboardingMap = onboardingRecords.reduce((acc, record) => {
+      acc[record.user.toString()] = record;
+      return acc;
+    }, {});
+
+    let employees = users
+      .map((user) => {
+        const onboarding = onboardingMap[user._id.toString()];
+        const personalInfo = onboarding?.formData?.personalInfo || {};
+        const contact = onboarding?.formData?.contactInfo || {};
+        const employment = onboarding?.formData?.employment || {};
+        const name = getLegalName(onboarding, user.username);
+        return {
+          id: user._id,
+          name,
+          ssn: personalInfo.ssn || "N/A",
+          workAuthorization: employment.workAuthorization || "N/A",
+          phone: contact.cellPhone || contact.workPhone || "N/A",
+          email: user.email,
+          onboardingStatus: onboarding?.status || "never_submitted"
+        };
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     if (search) {
-      const regex = buildRegex(search);
-      filter.$or = [
-        { "profile.personalInfo.firstName": regex },
-        { "profile.personalInfo.lastName": regex },
-        { "profile.personalInfo.preferredName": regex },
-        { "onboarding.formData.personalInfo.firstName": regex },
-        { "onboarding.formData.personalInfo.lastName": regex },
-        { "onboarding.formData.personalInfo.preferredName": regex },
-        { username: regex }
-      ];
+      const query = search.toLowerCase();
+      employees = employees.filter(
+        (emp) =>
+          emp.name.toLowerCase().includes(query) ||
+          emp.email.toLowerCase().includes(query) ||
+          (emp.phone && emp.phone.toLowerCase().includes(query))
+      );
     }
 
-    const employees = await User.find(filter)
-      .sort({ "profile.personalInfo.lastName": 1, username: 1 })
-      .lean();
-
-    res.json({
-      total: employees.length,
-      employees: employees.map(buildEmployeeSummary)
-    });
+    res.json({ total: employees.length, employees });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -238,11 +165,13 @@ router.get("/employees", protect, roleCheck(["hr"]), async (req, res) => {
 
 router.get("/employees/:id", protect, roleCheck(["hr"]), async (req, res) => {
   try {
-    const employee = await User.findById(req.params.id).select("-password");
-    if (!employee) {
+    const onboarding = await OnboardingApplication.findOne({ user: req.params.id })
+      .populate("user", "email username")
+      .lean();
+    if (!onboarding) {
       return res.status(404).json({ message: "Employee not found." });
     }
-    res.json({ employee });
+    res.json({ employee: onboarding });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -252,26 +181,25 @@ router.get("/onboarding", protect, roleCheck(["hr"]), async (req, res) => {
   try {
     const { status } = req.query;
     const allowedStatuses = ["pending", "approved", "rejected"];
-    const filter = { role: "employee" };
-
+    const filter = {};
     if (status) {
       if (!allowedStatuses.includes(status)) {
         return res.status(400).json({ message: "Invalid status filter." });
       }
-      filter["onboarding.status"] = status;
+      filter.status = status;
     }
-
-    const applications = await User.find(filter)
-      .sort({ "onboarding.submittedAt": -1 })
+    const applications = await OnboardingApplication.find(filter)
+      .populate("user", "email username")
+      .sort({ submittedAt: -1 })
       .lean();
 
-    const items = applications.map((user) => ({
-      userId: user._id,
-      name: getLegalName(user),
-      email: user.email,
-      status: user.onboarding?.status,
-      submittedAt: user.onboarding?.submittedAt,
-      feedback: user.onboarding?.feedback
+    const items = applications.map((record) => ({
+      userId: record.user._id,
+      name: getLegalName(record, record.user.username),
+      email: record.user.email,
+      status: record.status,
+      submittedAt: record.submittedAt,
+      feedback: record.feedback
     }));
 
     res.json({ total: items.length, applications: items });
@@ -282,22 +210,24 @@ router.get("/onboarding", protect, roleCheck(["hr"]), async (req, res) => {
 
 router.get("/onboarding/:userId", protect, roleCheck(["hr"]), async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId).lean();
-    if (!user || user.role !== "employee") {
-      return res.status(404).json({ message: "Employee not found." });
+    const record = await OnboardingApplication.findOne({ user: req.params.userId })
+      .populate("user", "email username")
+      .lean();
+    if (!record) {
+      return res.status(404).json({ message: "Application has not been submitted." });
     }
-    if (!user.onboarding?.formData) {
+    if (!record.formData) {
       return res.status(404).json({ message: "Application has not been submitted." });
     }
 
     res.json({
-      userId: user._id,
-      name: getLegalName(user),
-      email: user.email,
-      status: user.onboarding.status,
-      submittedAt: user.onboarding.submittedAt,
-      feedback: user.onboarding.feedback,
-      form: user.onboarding.formData
+      userId: record.user._id,
+      name: getLegalName(record, record.user.username),
+      email: record.user.email,
+      status: record.status,
+      submittedAt: record.submittedAt,
+      feedback: record.feedback,
+      form: record.formData
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -311,41 +241,21 @@ router.patch("/onboarding/:userId", protect, roleCheck(["hr"]), async (req, res)
       return res.status(400).json({ message: "Status must be approved or rejected." });
     }
 
-    const user = await User.findById(req.params.userId);
-    if (!user || user.role !== "employee") {
-      return res.status(404).json({ message: "Employee not found." });
-    }
-
-    if (!user.onboarding?.formData) {
+    const record = await OnboardingApplication.findOne({ user: req.params.userId });
+    if (!record || !record.formData) {
       return res.status(400).json({ message: "Employee has not submitted an application." });
     }
 
+    record.status = status;
+    record.reviewedAt = new Date();
+    record.reviewer = req.user._id;
+    record.feedback = status === "approved" ? undefined : feedback || "Please review the comments and resubmit.";
     if (status === "approved") {
-      user.profile = user.onboarding.formData;
-      if (!user.profile.personalInfo) {
-        user.profile.personalInfo = {};
-      }
-      user.profile.personalInfo.email = user.email;
-      const profilePhoto = getDocuments(user).find((doc) => doc.type === "profile_picture");
-      if (profilePhoto) {
-        user.profile.personalInfo.profilePicture = profilePhoto.url;
-      }
-
-      const isOpt = user.profile?.employment?.workAuthorization === "f1_opt";
-      user.visaWorkflow.optRequired = Boolean(isOpt);
-      user.visaWorkflow.currentStep = isOpt ? "opt_receipt" : "not_applicable";
-      user.onboarding.feedback = undefined;
-    } else {
-      user.onboarding.feedback = feedback || "Please review the comments and resubmit.";
+      record.feedback = undefined;
     }
+    await record.save();
 
-    user.onboarding.status = status;
-    user.onboarding.reviewedAt = new Date();
-    user.onboarding.reviewer = req.user._id;
-
-    await user.save();
-
-    res.json({ message: `Application ${status}`, onboarding: user.onboarding });
+    res.json({ message: `Application ${status}`, onboarding: record });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -353,30 +263,65 @@ router.patch("/onboarding/:userId", protect, roleCheck(["hr"]), async (req, res)
 
 router.get("/visa/in-progress", protect, roleCheck(["hr"]), async (req, res) => {
   try {
-    const employees = await User.find({ role: "employee" }).lean();
+    const visaRecords = await VisaStatus.find({ requiresOpt: true }).populate("user", "email username").lean();
+    const onboardingMap = await loadOnboardingMap(visaRecords.map((record) => record.user._id));
 
-    const list = employees
-      .map((user) => {
-        const progress = deriveVisaProgress(user);
-        if (!progress.requiresOpt || progress.completed) return null;
+    const list = visaRecords
+      .map((record) => {
+        const onboarding = onboardingMap[record.user._id.toString()];
+        if (!onboarding || record.currentStep === "completed") return null;
 
+        const employment = onboarding?.formData?.employment;
+        const progress = (() => {
+          const docList = Array.isArray(record.documents) ? record.documents : [];
+          const documents = VISA_FLOW.map((item) => ({
+            label: item.label,
+            type: item.type,
+            document: docList.find((doc) => doc.type === item.type)
+          }));
+
+          for (let i = 0; i < documents.length; i++) {
+            const entry = documents[i];
+            if (!entry.document || entry.document.status === "not_uploaded") {
+              return {
+                nextStep: `Employee must upload ${entry.label}`,
+                action: "notify",
+                pendingDocument: null
+              };
+            }
+            if (entry.document.status === "pending") {
+              return {
+                nextStep: `Waiting for HR to review ${entry.label}`,
+                action: "review",
+                pendingDocument: entry.document
+              };
+            }
+            if (entry.document.status === "rejected") {
+              return {
+                nextStep: entry.document.feedback || `${entry.label} was rejected. Employee must resubmit.`,
+                action: "notify",
+                pendingDocument: entry.document
+              };
+            }
+          }
+          return {
+            nextStep: "All documents have been approved.",
+            action: null,
+            pendingDocument: null
+          };
+        })();
+
+        const name = getLegalName(onboarding, record.user.username);
         return {
-          userId: user._id,
-          name: getLegalName(user),
-          workAuthorization: getEmploymentSource(user)?.workAuthorization,
-          startDate: user.profile?.employment?.startDate,
-          endDate: user.profile?.employment?.endDate,
-          daysRemaining: computeDaysRemaining(user),
+          userId: record.user._id,
+          name,
+          workAuthorization: employment?.workAuthorization,
+          startDate: employment?.startDate,
+          endDate: employment?.endDate,
+          daysRemaining: computeDaysRemaining(onboarding),
           nextStep: progress.nextStep,
           action: progress.action,
           pendingDocument: progress.pendingDocument
-            ? {
-                type: progress.pendingDocument.type,
-                url: progress.pendingDocument.url,
-                status: progress.pendingDocument.status,
-                feedback: progress.pendingDocument.feedback
-              }
-            : null
         };
       })
       .filter(Boolean);
@@ -389,29 +334,21 @@ router.get("/visa/in-progress", protect, roleCheck(["hr"]), async (req, res) => 
 
 router.get("/visa/all", protect, roleCheck(["hr"]), async (req, res) => {
   try {
-    const employees = await User.find({ role: "employee" }).lean();
+    const visaRecords = await VisaStatus.find({ requiresOpt: true }).populate("user", "email username").lean();
+    const onboardingMap = await loadOnboardingMap(visaRecords.map((record) => record.user._id));
 
-    const records = employees
-      .map((user) => {
-        const approvedDocs = getDocuments(user)
-          .filter((doc) => doc.category === "visa" && doc.status === "approved")
-          .map((doc) => ({
-            type: doc.type,
-            label: doc.label,
-            url: doc.url,
-            reviewedAt: doc.reviewedAt
-          }));
-
-        const progress = deriveVisaProgress(user);
-        if (!progress.requiresOpt && approvedDocs.length === 0) {
-          return null;
-        }
-
+    const records = visaRecords
+      .map((record) => {
+        const onboarding = onboardingMap[record.user._id.toString()];
+        if (!onboarding) return null;
+        const name = getLegalName(onboarding, record.user.username);
+        const docList = Array.isArray(record.documents) ? record.documents : [];
+        const approvedDocs = docList.filter((doc) => doc.status === "approved");
         return {
-          userId: user._id,
-          name: getLegalName(user),
+          userId: record.user._id,
+          name,
           documents: approvedDocs,
-          currentStep: progress.currentStep
+          currentStep: record.currentStep
         };
       })
       .filter(Boolean);
@@ -434,12 +371,12 @@ router.patch("/visa/documents/:userId/:type", protect, roleCheck(["hr"]), async 
       return res.status(400).json({ message: "Unknown visa document type." });
     }
 
-    const user = await User.findById(req.params.userId);
-    if (!user || user.role !== "employee") {
-      return res.status(404).json({ message: "Employee not found." });
+    const visaRecord = await VisaStatus.findOne({ user: req.params.userId });
+    if (!visaRecord) {
+      return res.status(404).json({ message: "Employee visa record not found." });
     }
 
-    const document = getDocuments(user).find((doc) => doc.type === docConfig.type);
+    const document = visaRecord.documents.find((doc) => doc.type === docConfig.type);
     if (!document) {
       return res.status(404).json({ message: "Document not found for this employee." });
     }
@@ -452,18 +389,14 @@ router.patch("/visa/documents/:userId/:type", protect, roleCheck(["hr"]), async 
     if (status === "approved") {
       const index = VISA_FLOW.findIndex((item) => item.type === docConfig.type);
       const nextStep = VISA_FLOW[index + 1];
-      user.visaWorkflow.currentStep = nextStep ? nextStep.type : "completed";
+      visaRecord.currentStep = nextStep ? nextStep.type : "completed";
     } else {
-      user.visaWorkflow.currentStep = docConfig.type;
+      visaRecord.currentStep = docConfig.type;
     }
 
-    await user.save();
+    await visaRecord.save();
 
-    res.json({
-      message: `${docConfig.label} marked as ${status}`,
-      document,
-      visaWorkflow: user.visaWorkflow
-    });
+    res.json({ message: `${docConfig.label} marked as ${status}`, document, visaWorkflow: visaRecord });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -481,21 +414,32 @@ router.post("/visa/notify/:userId", protect, roleCheck(["hr"]), async (req, res)
       return res.status(404).json({ message: "Employee not found." });
     }
 
+    const onboarding = await OnboardingApplication.findOne({ user: user._id }).lean();
+    const name = getLegalName(onboarding, user.username);
+
     const emailSubject = subject || "Visa Status Update";
     await sendEmail({
       to: user.email,
       subject: emailSubject,
-      html: `<p>Hello ${getLegalName(user)},</p><p>${message}</p>`
+      html: `<p>Hello ${name},</p><p>${message}</p>`
     });
 
-    user.visaWorkflow.notificationLog.push({ subject: emailSubject, message, sentAt: new Date() });
-    user.visaWorkflow.lastNotificationAt = new Date();
-    await user.save();
+    const visaRecord = await ensureVisaRecord(user._id);
+    visaRecord.notificationLog.push({ subject: emailSubject, message, sentAt: new Date() });
+    visaRecord.lastNotificationAt = new Date();
+    await visaRecord.save();
 
     res.json({ message: "Notification sent." });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
+
+const ensureVisaRecord = async (userId) =>
+  VisaStatus.findOneAndUpdate(
+    { user: userId },
+    { $setOnInsert: { user: userId } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
 
 export default router;
