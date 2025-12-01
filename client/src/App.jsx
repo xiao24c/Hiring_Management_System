@@ -49,7 +49,14 @@ const HRRoutes = () => (
 );
 
 const RoleRouter = () => {
-  const { user } = useAuth();
+  const { user, loading, token } = useAuth();
+  if (loading || (token && !user)) {
+    return (
+      <div className="page-card">
+        <p>Loading...</p>
+      </div>
+    );
+  }
   if (!user) return null;
   return user.role === "hr" ? <HRRoutes /> : <EmployeeRoutes />;
 };

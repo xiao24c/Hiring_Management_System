@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import api from "../../services/api.js";
 
 const statusLabels = {
@@ -15,7 +16,7 @@ const HiringManagementPage = () => {
   const [applications, setApplications] = useState({ pending: [], rejected: [], approved: [] });
   const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [tokensRes, pendingRes, rejectedRes, approvedRes] = await Promise.all([
@@ -35,11 +36,32 @@ const HiringManagementPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        loadData();
+      }
+    };
+    window.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("focus", handleVisibility);
+    return () => {
+      window.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", handleVisibility);
+    };
+  }, [loadData]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadData();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
   const handleTokenSubmit = async (event) => {
     event.preventDefault();
@@ -63,6 +85,9 @@ const HiringManagementPage = () => {
       <div className="section-card">
         <div className="section-card__header">
           <h3>Registration Tokens</h3>
+          <button className="link-button" type="button" onClick={loadData}>
+            Refresh
+          </button>
         </div>
         <form className="form-grid" onSubmit={handleTokenSubmit}>
           <div className="input-group">
@@ -142,7 +167,12 @@ const HiringManagementPage = () => {
       </div>
 
       <div className="section-card">
-        <h3>Onboarding Application Review</h3>
+        <div className="section-card__header">
+          <h3>Onboarding Application Review</h3>
+          <button className="link-button" type="button" onClick={loadData}>
+            Refresh
+          </button>
+        </div>
         {loading ? (
           <p>Loading applications...</p>
         ) : (
@@ -171,9 +201,7 @@ const HiringManagementPage = () => {
                           <td>{item.email}</td>
                           <td>{item.submittedAt ? new Date(item.submittedAt).toLocaleString() : "--"}</td>
                           <td>
-                            <a href={`/hr/onboarding/${item.userId}`} target="_blank" rel="noreferrer">
-                              View Application
-                            </a>
+                          <Link to={`/hr/onboarding/${item.userId}`}>View Application</Link>
                           </td>
                         </tr>
                       ))}

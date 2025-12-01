@@ -84,9 +84,13 @@ const ensureOnboardingRecord = async (userId, email) => {
 const ensureVisaRecord = async (userId) => {
   const record = await VisaStatus.findOneAndUpdate(
     { user: userId },
-    { $setOnInsert: { user: userId } },
+    { $setOnInsert: { user: userId, userId } },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
+  if (record && !record.userId) {
+    record.userId = record.user || userId;
+    await record.save();
+  }
   return record;
 };
 

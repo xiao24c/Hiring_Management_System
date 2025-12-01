@@ -40,6 +40,7 @@ const visaDocumentSchema = new Schema(
 const visaStatusSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", unique: true, required: true },
+    userId: { type: Schema.Types.ObjectId, ref: "User", unique: true, sparse: true },
     requiresOpt: { type: Boolean, default: false },
     currentStep: {
       type: String,
@@ -52,6 +53,16 @@ const visaStatusSchema = new Schema(
   },
   { timestamps: true }
 );
+
+visaStatusSchema.pre("validate", function (next) {
+  if (!this.user && this.userId) {
+    this.user = this.userId;
+  }
+  if (!this.userId && this.user) {
+    this.userId = this.user;
+  }
+  next();
+});
 
 const VisaStatus = mongoose.model("VisaStatus", visaStatusSchema);
 

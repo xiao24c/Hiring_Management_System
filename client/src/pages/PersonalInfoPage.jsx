@@ -23,6 +23,20 @@ const PersonalInfoPage = () => {
     setEditing(null);
   }, [profile]);
 
+  useEffect(() => {
+    refreshEmployeeProfile();
+  }, [refreshEmployeeProfile]);
+
+  useEffect(() => {
+    if (!employeeProfile) return;
+    const shouldPoll = employeeProfile.onboardingStatus !== "approved" || !employeeProfile.profile;
+    if (!shouldPoll) return undefined;
+    const interval = setInterval(() => {
+      refreshEmployeeProfile();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [employeeProfile, refreshEmployeeProfile]);
+
   const documents = useMemo(() => employeeProfile?.documents || [], [employeeProfile]);
 
   if (!profile) {

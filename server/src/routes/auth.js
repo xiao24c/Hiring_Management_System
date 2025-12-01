@@ -30,7 +30,7 @@ router.post("/register", async (req, res) => {
 
     await VisaStatus.findOneAndUpdate(
       { user: user._id },
-      { user: user._id },
+      { $setOnInsert: { user: user._id, userId: user._id } },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
