@@ -104,6 +104,7 @@ export default function OnboardingReviewPanel() {
             loading={loading}
             columns={columns("pending")}
             dataSource={data.pending}
+            scroll={{ x: true }}
           />
         </TabPane>
 
@@ -113,6 +114,7 @@ export default function OnboardingReviewPanel() {
             loading={loading}
             columns={columns("rejected")}
             dataSource={data.rejected}
+            scroll={{ x: true }}
           />
         </TabPane>
 
@@ -122,6 +124,7 @@ export default function OnboardingReviewPanel() {
             loading={loading}
             columns={columns("approved")}
             dataSource={data.approved}
+            scroll={{ x: true }}
           />
         </TabPane>
       </Tabs>

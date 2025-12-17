@@ -6,7 +6,7 @@ export default function LegalSection({ readOnly = false }) {
       <h3>Legal Information</h3>
 
       <Row gutter={16}>
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Form.Item
             label="SSN"
             name={["legalInfo", "ssn"]}
@@ -16,7 +16,7 @@ export default function LegalSection({ readOnly = false }) {
           </Form.Item>
         </Col>
 
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Form.Item
             label="Date of Birth"
             name={["legalInfo", "dateOfBirth"]}
@@ -35,7 +35,9 @@ export default function LegalSection({ readOnly = false }) {
         <Radio.Group disabled={readOnly}>
           <Radio value="male">Male</Radio>
           <Radio value="female">Female</Radio>
-          <Radio value="prefer_not_to_answer">I do not wish to answer</Radio>
+          <Radio value="I don't wish to answer">
+            I do not wish to answer
+          </Radio>
         </Radio.Group>
       </Form.Item>
     </>

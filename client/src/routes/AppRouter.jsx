@@ -1,6 +1,7 @@
 // src/routes/AppRouter.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "../pages/LoginPage/LoginPage";
+import RegisterPage from "../pages/RegisterPage/RegisterPage";
 
 import EmployeeDashboardRoute from "./EmployeeDashboardRoute";
 import EmployeeOnboardingRoute from "./EmployeeOnboardingRoute";
@@ -13,10 +14,13 @@ import VisaPage from "../pages/Employee/Dashboard/Visa/VisaPage";
 import StepDetail from "../pages/Employee/Dashboard/Visa/StepDetail";
 
 import HRDashboardLayout from "../pages/HR/Dashboard/DashboardLayout";
+import HRHomePage from "../pages/HR/Dashboard/HomePage";
 import EmployeeListPage from "../pages/HR/Dashboard/Employees/EmployeeListPage";
+import EmployeeDetailPage from "../pages/HR/Dashboard/Employees/EmployeeDetailPage";
 import HRVisaListPage from "../pages/HR/Dashboard/Visa/HRVisaListPage";
 import HRVisaDetailPage from "../pages/HR/Dashboard/Visa/HRVisaDetailPage";
 import HiringManagementPage from "../pages/HR/Dashboard/Hiring/HiringManagementPage";
+import OnboardingDetailPage from "../pages/HR/Dashboard/Hiring/OnboardingDetailPage";
 
 export default function AppRouter() {
   return (
@@ -26,6 +30,7 @@ export default function AppRouter() {
 
       {/* 登录页 */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
 
       {/* =====================
           Employee Onboarding
@@ -67,8 +72,8 @@ export default function AppRouter() {
           </HRDashboardRoute>
         }
       >
-        {/* 默认 → Employee Profiles */}
-        <Route index element={<Navigate to="employees" replace />} />
+        {/* HR Home */}
+        <Route index element={<HRHomePage />} />
 
         {/* Employee Profiles */}
         <Route path="employees" element={<EmployeeListPage />} />
@@ -80,6 +85,23 @@ export default function AppRouter() {
         {/* Hiring Management */}
         <Route path="hiring" element={<HiringManagementPage />} />
       </Route>
+
+      <Route
+        path="/hr/onboarding/:onboardingId"
+        element={
+          <HRDashboardRoute>
+            <OnboardingDetailPage />
+          </HRDashboardRoute>
+        }
+      />
+      <Route
+        path="/hr/employees/:userId"
+        element={
+          <HRDashboardRoute>
+            <EmployeeDetailPage />
+          </HRDashboardRoute>
+        }
+      />
 
       {/* 兜底 */}
       <Route path="*" element={<Navigate to="/login" replace />} />

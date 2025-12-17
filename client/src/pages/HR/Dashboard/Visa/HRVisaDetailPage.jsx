@@ -100,6 +100,9 @@ export default function HRVisaDetailPage() {
           <Button onClick={() => setPreviewOpen(true)}>
             Preview Document
           </Button>
+          <Button type="link" href={activeStepFile} download>
+            Download
+          </Button>
 
           <Modal
             open={previewOpen}

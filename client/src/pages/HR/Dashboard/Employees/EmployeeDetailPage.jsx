@@ -1,9 +1,9 @@
 import { useEffect } from "react";
-import { Card, Spin, Alert, Divider, Form } from "antd";
-import { useParams } from "react-router-dom";
+import { Card, Spin, Alert, Divider, Form, Button } from "antd";
+import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 
-import { fetchEmployeeDetail } from "../../../../store/hrEmployeesSlice";
+import { fetchEmployeeDetail } from "../../../../store/hrEmployeeSlice";
 
 import BasicInfoSection from "../../../../components/Onboarding/BasicInfoSection";
 import ProfilePictureSection from "../../../../components/Onboarding/ProfilePictureSection";
@@ -17,6 +17,7 @@ import FileSummarySection from "../../../../components/Onboarding/FileSummarySec
 
 export default function EmployeeDetailPage() {
   const { userId } = useParams();
+  const navigate = useNavigate();
   const dispatch = useDispatch();
   const [form] = Form.useForm();
 
@@ -56,6 +57,11 @@ export default function EmployeeDetailPage() {
     <Card
       title={`Employee Profile — ${onboarding?.name?.firstName || ""} ${onboarding?.name?.lastName || ""}`}
       style={{ maxWidth: 1000, margin: "24px auto" }}
+      extra={
+        <Button onClick={() => navigate("/hr/employees")}>
+          Back to Employees
+        </Button>
+      }
     >
       {!onboarding && (
         <Alert

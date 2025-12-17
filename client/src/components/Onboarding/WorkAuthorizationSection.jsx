@@ -1,7 +1,12 @@
-import { Form, Radio, Select, DatePicker, Input, Row, Col } from "antd";
+import { Form, Radio, Select, DatePicker, Row, Col, Typography } from "antd";
+import FileUploadField from "../shared/FileUploadField";
 const { Option } = Select;
+const { Link, Text } = Typography;
 
-export default function WorkAuthorizationSection({ readOnly = false }) {
+export default function WorkAuthorizationSection({
+  readOnly = false,
+  showOptReceipt = true,
+}) {
   return (
     <>
       <h3>Work Authorization</h3>
@@ -47,9 +52,25 @@ export default function WorkAuthorizationSection({ readOnly = false }) {
                   </Select>
                 </Form.Item>
 
-                {workAuth === "F1" && (
-                  <Form.Item name={["visaInfo", "optReceiptUrl"]} rules={[{ required: true }]}>
-                    <Input disabled={readOnly} />
+                {showOptReceipt && workAuth === "F1" && (
+                  <Form.Item
+                    label="OPT Receipt"
+                    name={["visaInfo", "optReceiptUrl"]}
+                    valuePropName="value"
+                    rules={[{ required: true, message: "OPT Receipt is required" }]}
+                    shouldUpdate={readOnly}
+                  >
+                    {readOnly
+                      ? ({ getFieldValue }) => {
+                          const url = getFieldValue(["visaInfo", "optReceiptUrl"]);
+                          if (!url) return <Text type="secondary">Not uploaded</Text>;
+                          return (
+                            <Link href={url} target="_blank" rel="noreferrer">
+                              Preview / Download
+                            </Link>
+                          );
+                        }
+                      : <FileUploadField accept=".pdf,image/*" />}
                   </Form.Item>
                 )}
 
@@ -60,12 +81,12 @@ export default function WorkAuthorizationSection({ readOnly = false }) {
                 )}
 
                 <Row gutter={16}>
-                  <Col span={12}>
+                  <Col xs={24} md={12}>
                     <Form.Item name={["visaInfo", "startDate"]} rules={[{ required: true }]}>
                       <DatePicker disabled={readOnly} style={{ width: "100%" }} />
                     </Form.Item>
                   </Col>
-                  <Col span={12}>
+                  <Col xs={24} md={12}>
                     <Form.Item name={["visaInfo", "endDate"]} rules={[{ required: true }]}>
                       <DatePicker disabled={readOnly} style={{ width: "100%" }} />
                     </Form.Item>

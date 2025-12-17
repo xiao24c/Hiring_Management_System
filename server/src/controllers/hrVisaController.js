@@ -1,6 +1,7 @@
 import User from "../models/User.js";
 import VisaStatus from "../models/VisaStatus.js";
 import OnboardingApplication from "../models/OnboardingApplication.js";
+import { sendEmail } from "../utils/sendEmail.js";
 
 /* --------------------------------
    Helper：推断当前 active step（F1 only）
@@ -80,6 +81,7 @@ export const getVisaSummaryList = async (req, res) => {
       const userId = onboarding.userId.toString();
       const user = userMap.get(userId);
       const visaInfo = onboarding.visaInfo || {};
+      const name = onboarding.name || {};
 
       const isF1 =
         visaInfo.isCitizenOrPR === false &&
@@ -94,11 +96,13 @@ export const getVisaSummaryList = async (req, res) => {
 
         return {
           user,
+          name,
           isF1: true,
 
           // visa workflow
           activeStep,
           status: stepStatus,
+          activeStepFile: visa[activeStep]?.fileUrl || null,
 
           // work authorization
           workAuthorization: {
@@ -113,6 +117,7 @@ export const getVisaSummaryList = async (req, res) => {
       // ===== 非 F1 =====
       return {
         user,
+        name,
         isF1: false,
 
         activeStep: null,
@@ -214,8 +219,17 @@ export const advanceVisaStatus = async (req, res) => {
       });
     }
 
-    if (action === "notify_user") {
-      console.log(`📧 Email sent to user ${userId} for step ${activeStep}`);
+  if (action === "notify_user") {
+      const user = await User.findById(userId).select("email username");
+      if (user?.email) {
+        const stepLabel = activeStep.toUpperCase();
+        await sendEmail({
+          to: user.email,
+          subject: "Visa document reminder",
+          text: `Hi ${user.username || ""}, please complete your next visa step: ${stepLabel}.`,
+          html: `<p>Hi ${user.username || ""},</p><p>Please complete your next visa step: <strong>${stepLabel}</strong>.</p>`,
+        });
+      }
       return res.json({
         msg: "Notification sent to employee",
         step: activeStep,

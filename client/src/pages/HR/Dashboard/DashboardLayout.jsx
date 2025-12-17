@@ -13,6 +13,7 @@ export default function HRDashboardLayout() {
   const [collapsed, setCollapsed] = useState(false);
 
   const menuItems = [
+    { key: "/hr", label: "Home" },
     { key: "/hr/employees", label: "Employee Profiles" },
     { key: "/hr/visa", label: "Visa Status Management" },
     { key: "/hr/hiring", label: "Hiring Management" },

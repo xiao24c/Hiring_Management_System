@@ -2,19 +2,33 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import OnboardingApplication from "../models/OnboardingApplication.js";
+import RegistrationToken from "../models/RegistrationToken.js";
 
 /* ------------------------------
    REGISTER (with token validation)
 ------------------------------ */
 export const registerUser = async (req, res) => {
   try {
-    const { email, username, password, token } = req.body;
+    const { username, password, token } = req.body;
 
-    if (!email || !username || !password || !token) {
+    if (!username || !password || !token) {
       return res.status(400).json({ msg: "Missing required fields" });
     }
 
-    // check email unique
+    // validate registration token
+    const tokenDoc = await RegistrationToken.findOne({ token });
+    if (!tokenDoc) {
+      return res.status(400).json({ msg: "Invalid or unknown token" });
+    }
+    if (tokenDoc.used) {
+      return res.status(400).json({ msg: "This token was already used" });
+    }
+    if (new Date(tokenDoc.expiresAt) < new Date()) {
+      return res.status(400).json({ msg: "Token expired" });
+    }
+
+    const email = tokenDoc.email;
+
     const emailExists = await User.findOne({ email });
     if (emailExists) {
       return res.status(400).json({ msg: "Email already registered" });
@@ -37,6 +51,10 @@ export const registerUser = async (req, res) => {
       role: "employee"
     });
 
+    tokenDoc.used = true;
+    tokenDoc.userId = user._id;
+    await tokenDoc.save();
+
     // ⭐ 注册立即创建空的 Onboarding Application
     await OnboardingApplication.create({
       userId: user._id,
@@ -49,7 +67,9 @@ export const registerUser = async (req, res) => {
       contactInfo: {},
       reference: {},
       emergencyContacts: [],
-      visaInfo: {}
+      visaInfo: {},
+      profilePictureUrl: "",
+      driverLicenseUrl: ""
     });
 
     res.json({ msg: "User registered", userId: user._id });
@@ -61,12 +81,42 @@ export const registerUser = async (req, res) => {
 };
 
 /* ------------------------------
+   VALIDATE TOKEN (preflight for register page)
+------------------------------ */
+export const validateRegistrationToken = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({ msg: "Token is required" });
+    }
+
+    const tokenDoc = await RegistrationToken.findOne({ token });
+    if (!tokenDoc) {
+      return res.status(404).json({ msg: "Token not found" });
+    }
+    if (tokenDoc.used) {
+      return res.status(400).json({ msg: "Token already used" });
+    }
+    if (new Date(tokenDoc.expiresAt) < new Date()) {
+      return res.status(400).json({ msg: "Token expired" });
+    }
+
+    return res.json({
+      email: tokenDoc.email,
+      expiresAt: tokenDoc.expiresAt
+    });
+  } catch (err) {
+    console.error("validateRegistrationToken error:", err);
+    res.status(500).json({ msg: "Server error validating token" });
+  }
+};
+
+/* ------------------------------
    LOGIN
 ------------------------------ */
 export const loginUser = async (req, res) => {
   try {
     const { username, password } = req.body;
-    console.log("LOGIN BODY =", req.body);
 
     if (!username || !password) {
       return res.status(400).json({ msg: "Missing credentials" });

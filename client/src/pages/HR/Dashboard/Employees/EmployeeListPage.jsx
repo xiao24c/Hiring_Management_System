@@ -106,6 +106,7 @@ export default function EmployeeListPage() {
           columns={columns}
           dataSource={filteredEmployees}
           pagination={{ pageSize: 10 }}
+          scroll={{ x: true }}
         />
       )}
     </Card>

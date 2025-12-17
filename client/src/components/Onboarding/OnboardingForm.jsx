@@ -14,6 +14,7 @@ import useOnboarding from "../../hooks/useOnboarding";
 
 import BasicInfoSection from "./BasicInfoSection";
 import ProfilePictureSection from "./ProfilePictureSection";
+import DocumentUploadSection from "./DocumentUploadSection";
 import AddressSection from "./AddressSection";
 import ContactSection from "./ContactSection";
 import LegalSection from "./LegalSection";
@@ -165,6 +166,9 @@ export default function OnboardingForm({ mode, initialData, userEmail }) {
         <Divider />
 
         <ProfilePictureSection readOnly={isReadOnly} />
+        <Divider />
+
+        <DocumentUploadSection readOnly={isReadOnly} />
         <Divider />
 
         <AddressSection readOnly={isReadOnly} />

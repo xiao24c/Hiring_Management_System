@@ -109,6 +109,7 @@ const OnboardingApplicationSchema = new Schema(
     feedback: { type: String, default: "" },
 
     profilePictureUrl: { type: String, default: "" },
+    driverLicenseUrl: { type: String, default: "" },
 
     name: { type: NameSchema, default: () => ({}) },
 

@@ -23,6 +23,8 @@ export const getMyOnboarding = async (req, res) => {
         visaInfo: {},
         reference: {},
         emergencyContacts: [],
+        driverLicenseUrl: "",
+        profilePictureUrl: "",
 
         submittedAt: null,
         feedback: ""
@@ -71,6 +73,12 @@ export const saveMyOnboarding = async (req, res) => {
     app.legalInfo = merge(app.legalInfo, updates.legalInfo);
     app.visaInfo = merge(app.visaInfo, updates.visaInfo);
     app.reference = merge(app.reference, updates.reference);
+    if (typeof updates.profilePictureUrl === "string") {
+      app.profilePictureUrl = updates.profilePictureUrl;
+    }
+    if (typeof updates.driverLicenseUrl === "string") {
+      app.driverLicenseUrl = updates.driverLicenseUrl;
+    }
 
     if (Array.isArray(updates.emergencyContacts)) {
       app.emergencyContacts = updates.emergencyContacts;

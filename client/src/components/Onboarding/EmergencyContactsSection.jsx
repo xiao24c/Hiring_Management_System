@@ -23,7 +23,7 @@ export default function EmergencyContactsSection({ readOnly = false }) {
               <div key={field.key} style={{ marginBottom: 16 }}>
                 <Row gutter={16}>
                   {["firstName", "lastName", "middleName", "phone", "email", "relationship"].map((k) => (
-                    <Col span={8} key={k}>
+                    <Col xs={24} md={8} key={k}>
                       <Form.Item
                         name={[field.name, k]}
                         label={k}
@@ -35,7 +35,7 @@ export default function EmergencyContactsSection({ readOnly = false }) {
                   ))}
 
                   {!readOnly && fields.length > 1 && (
-                    <Col span={2}>
+                    <Col xs={24} md={2}>
                       <MinusCircleOutlined onClick={() => remove(field.name)} />
                     </Col>
                   )}

@@ -23,6 +23,31 @@ export const login = createAsyncThunk(
   }
 );
 
+export const restoreSession = createAsyncThunk(
+  "auth/restore",
+  async (_, thunkAPI) => {
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return thunkAPI.rejectWithValue("No token");
+    }
+    try {
+      const me = await getCurrentUser();
+      return { token, user: me.data };
+    } catch (err) {
+      localStorage.removeItem("token");
+      return thunkAPI.rejectWithValue(
+        err.response?.data?.msg || "Failed to restore session"
+      );
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { auth } = getState();
+      return !auth.user && !!auth.token;
+    },
+  }
+);
+
 const authSlice = createSlice({
   name: "auth",
   initialState: {
@@ -52,6 +77,22 @@ const authSlice = createSlice({
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+
+      /* ---------- restore session ---------- */
+      .addCase(restoreSession.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(restoreSession.fulfilled, (state, action) => {
+        state.loading = false;
+        state.token = action.payload.token;
+        state.user = action.payload.user;
+      })
+      .addCase(restoreSession.rejected, (state, action) => {
+        state.loading = false;
+        state.token = null;
+        state.user = null;
       });
   }
 });

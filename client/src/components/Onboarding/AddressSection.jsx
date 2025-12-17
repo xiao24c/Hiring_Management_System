@@ -28,7 +28,7 @@ export default function AddressSection({ readOnly = false }) {
       </Form.Item>
 
       <Row gutter={16}>
-        <Col span={8}>
+        <Col xs={24} md={8}>
           <Form.Item
             label="City"
             name={["address", "city"]}
@@ -38,7 +38,7 @@ export default function AddressSection({ readOnly = false }) {
           </Form.Item>
         </Col>
 
-        <Col span={8}>
+        <Col xs={24} md={8}>
           <Form.Item
             label="State"
             name={["address", "state"]}
@@ -48,7 +48,7 @@ export default function AddressSection({ readOnly = false }) {
           </Form.Item>
         </Col>
 
-        <Col span={8}>
+        <Col xs={24} md={8}>
           <Form.Item
             label="ZIP"
             name={["address", "zip"]}

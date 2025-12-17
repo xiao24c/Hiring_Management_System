@@ -1,12 +1,16 @@
 import { Form, Input, Row, Col } from "antd";
 
-export default function ContactSection({ userEmail, readOnly = false }) {
+export default function ContactSection({
+  userEmail,
+  readOnly = false,
+  showEmail = true,
+}) {
   return (
     <>
       <h3>Contact Information</h3>
 
       <Row gutter={16}>
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Form.Item
             label="Cell Phone"
             name={["contactInfo", "cellPhone"]}
@@ -16,16 +20,18 @@ export default function ContactSection({ userEmail, readOnly = false }) {
           </Form.Item>
         </Col>
 
-        <Col span={12}>
+        <Col xs={24} md={12}>
           <Form.Item label="Work Phone" name={["contactInfo", "workPhone"]}>
             <Input disabled={readOnly} />
           </Form.Item>
         </Col>
       </Row>
 
-      <Form.Item label="Email">
-        <Input value={userEmail} disabled />
-      </Form.Item>
+      {showEmail && (
+        <Form.Item label="Email">
+          <Input value={userEmail} disabled />
+        </Form.Item>
+      )}
     </>
   );
 }

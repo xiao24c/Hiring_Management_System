@@ -16,13 +16,31 @@ export default function FileSummarySection({ onboardingData }) {
       <h3>Summary of Uploaded Documents</h3>
       <Descriptions column={1} size="small" bordered>
         <Descriptions.Item label="Profile Picture">
-          {profilePictureUrl || "Not uploaded"}
+          {profilePictureUrl ? (
+            <a href={profilePictureUrl} target="_blank" rel="noreferrer">
+              Preview / Download
+            </a>
+          ) : (
+            "Not uploaded"
+          )}
         </Descriptions.Item>
         <Descriptions.Item label="Driver's License">
-          {driverLicenseUrl || "Not uploaded"}
+          {driverLicenseUrl ? (
+            <a href={driverLicenseUrl} target="_blank" rel="noreferrer">
+              Preview / Download
+            </a>
+          ) : (
+            "Not uploaded"
+          )}
         </Descriptions.Item>
         <Descriptions.Item label="Work Authorization Document">
-          {optReceiptUrl || "Not uploaded"}
+          {optReceiptUrl ? (
+            <a href={optReceiptUrl} target="_blank" rel="noreferrer">
+              Preview / Download
+            </a>
+          ) : (
+            "Not uploaded"
+          )}
         </Descriptions.Item>
       </Descriptions>
     </Card>

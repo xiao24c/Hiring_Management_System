@@ -23,6 +23,18 @@ dotenv.config({ path: path.join(__dirname, "../.env") });
 
 const hashPassword = (pwd) => bcrypt.hash(pwd, 10);
 
+const FILE_BASE_URL =
+  process.env.SEED_FILE_BASE_URL || "http://localhost:5050/uploads";
+
+const sampleFiles = {
+  profile: `${FILE_BASE_URL}/profile.png`,
+  license: `${FILE_BASE_URL}/license.pdf`,
+  optReceipt: `${FILE_BASE_URL}/opt_receipt.pdf`,
+  optEAD: `${FILE_BASE_URL}/opt_ead.pdf`,
+  i983: `${FILE_BASE_URL}/i983.pdf`,
+  i20: `${FILE_BASE_URL}/i20.pdf`,
+};
+
 async function createUser(username, email, role = "employee") {
   return User.create({
     username,
@@ -39,9 +51,17 @@ function genToken(email, { used = false, expired = false } = {}) {
     token: `token_${email}_${Math.random().toString(36).slice(2)}`,
     used,
     expiresAt: expired
-      ? new Date(now - 3 * 24 * 60 * 60 * 1000)
-      : new Date(now + 3 * 24 * 60 * 60 * 1000)
+      ? new Date(now - 3 * 60 * 60 * 1000)
+      : new Date(now + 3 * 60 * 60 * 1000)
   };
+}
+
+async function createTokenForUser(email, userId) {
+  const tokenData = genToken(email, { used: true });
+  return RegistrationToken.create({
+    ...tokenData,
+    userId
+  });
 }
 
 async function createOnboarding(userId, status, extra = {}) {
@@ -60,6 +80,8 @@ async function createOnboarding(userId, status, extra = {}) {
       cellPhone: "123-456-7890"
     },
     visaInfo: extra.visaInfo ?? {},
+    profilePictureUrl: extra.profilePictureUrl ?? "",
+    driverLicenseUrl: extra.driverLicenseUrl ?? "",
     emergencyContacts: []
   });
 }
@@ -69,19 +91,19 @@ async function createVisa(userId, step) {
     userId,
     optReceipt: {
       status: step.receipt ?? "not_submitted",
-      fileUrl: step.receipt ? "https://example.com/receipt.pdf" : ""
+      fileUrl: step.receipt ? sampleFiles.optReceipt : ""
     },
     optEAD: {
       status: step.ead ?? "not_submitted",
-      fileUrl: step.ead ? "https://example.com/ead.pdf" : ""
+      fileUrl: step.ead ? sampleFiles.optEAD : ""
     },
     i983: {
       status: step.i983 ?? "not_submitted",
-      fileUrl: step.i983 ? "https://example.com/i983.pdf" : ""
+      fileUrl: step.i983 ? sampleFiles.i983 : ""
     },
     i20: {
       status: step.i20 ?? "not_submitted",
-      fileUrl: step.i20 ? "https://example.com/i20.pdf" : ""
+      fileUrl: step.i20 ? sampleFiles.i20 : ""
     }
   });
 }
@@ -116,10 +138,12 @@ async function run() {
 
   for (const a of A) {
     const user = await createUser(a.u, `${a.u}@test.com`);
-    await RegistrationToken.create(genToken(`${a.u}@test.com`, { used: true }));
+    await createTokenForUser(`${a.u}@test.com`, user._id);
     await createOnboarding(user._id, a.s, {
       firstName: a.u,
-      feedback: a.fb
+      feedback: a.fb,
+      profilePictureUrl: sampleFiles.profile,
+      driverLicenseUrl: sampleFiles.license
     });
   }
 
@@ -135,10 +159,12 @@ async function run() {
 
   for (const c of C) {
     const user = await createUser(`emp_${c.label}`, `${c.label}@test.com`);
-    await RegistrationToken.create(genToken(`${c.label}@test.com`, { used: true }));
+    await createTokenForUser(`${c.label}@test.com`, user._id);
     await createOnboarding(user._id, "approved", {
       firstName: c.label,
-      visaInfo: c.visa
+      visaInfo: c.visa,
+      profilePictureUrl: sampleFiles.profile,
+      driverLicenseUrl: sampleFiles.license
     });
   }
 
@@ -165,14 +191,15 @@ async function run() {
   let i = 1;
   for (const st of steps) {
     const user = await createUser(`f1_user${i}`, `f1_user${i}@test.com`);
-    await RegistrationToken.create(genToken(`f1_user${i}@test.com`, { used: true }));
+    await createTokenForUser(`f1_user${i}@test.com`, user._id);
     await createOnboarding(user._id, "approved", {
       firstName: `F1_${i}`,
       visaInfo: {
         isCitizenOrPR: false,
         workAuthorization: "F1",
         startDate: now,
-        endDate: nextYear
+        endDate: nextYear,
+        optReceiptUrl: sampleFiles.optReceipt
       }
     });
     await createVisa(user._id, st);

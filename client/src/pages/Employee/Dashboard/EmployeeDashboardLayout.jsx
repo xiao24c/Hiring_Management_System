@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { Layout, Menu, Spin } from "antd";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import { useState } from "react";
 
 import { logout } from "../../../store/authSlice";
 import useOnboarding from "../../../hooks/useOnboarding";
@@ -13,6 +14,7 @@ export default function EmployeeDashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
+  const [collapsed, setCollapsed] = useState(false);
 
   const { user } = useSelector((s) => s.auth);
 
@@ -73,7 +75,14 @@ export default function EmployeeDashboardLayout() {
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider>
+      <Sider
+        width={240}
+        collapsible
+        collapsed={collapsed}
+        onCollapse={setCollapsed}
+        breakpoint="md"
+        collapsedWidth={64}
+      >
         <div style={{ color: "#fff", padding: 16, fontWeight: 600 }}>
           Employee Portal
         </div>

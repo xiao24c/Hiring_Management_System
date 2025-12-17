@@ -53,7 +53,12 @@ export default function OnboardingReviewTable({ data, mode, onRefresh }) {
 
   return (
     <>
-      <Table rowKey="_id" columns={columns} dataSource={data} />
+      <Table
+        rowKey="_id"
+        columns={columns}
+        dataSource={data}
+        scroll={{ x: true }}
+      />
 
       <Modal
         open={!!rejectingId}
