@@ -1,4 +1,3 @@
-// src/store/visaSlice.js
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../api/axiosInstance";
 
@@ -101,8 +100,13 @@ const visaSlice = createSlice({
         state.status = "loading";
         state.error = null;
       })
-      .addCase(submitVisaStep.fulfilled, (state) => {
+      .addCase(submitVisaStep.fulfilled, (state, action) => {
         state.status = "succeeded";
+        // 如果后端返回了最新 steps，直接覆盖以避免额外请求
+        if (action.payload?.activeStep && action.payload?.steps) {
+          state.activeStep = action.payload.activeStep;
+          state.steps = action.payload.steps;
+        }
       })
       .addCase(submitVisaStep.rejected, (state, action) => {
         state.status = "failed";

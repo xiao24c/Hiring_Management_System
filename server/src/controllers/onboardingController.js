@@ -53,12 +53,9 @@ export const saveMyOnboarding = async (req, res) => {
       return res.status(404).json({ msg: "Onboarding record not found" });
     }
 
-    // cannot edit after submitting unless HR rejected it
+    // cannot edit while pending HR review
     if (app.status === "pending") {
       return res.status(400).json({ msg: "Cannot edit while waiting for HR review" });
-    }
-    if (app.status === "approved") {
-      return res.status(400).json({ msg: "Onboarding already approved" });
     }
 
     // safe merge

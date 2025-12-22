@@ -110,11 +110,16 @@ export default function OnboardingForm({ mode, initialData, userEmail }) {
   ========================== */
   const handleSaveDraft = async () => {
     try {
-      const values = await form.validateFields();
+      // Draft should allow partial data; use current form values without blocking on validation
+      const values = form.getFieldsValue(true);
       await saveOnboardingDraft(buildPayload(values)).unwrap();
       message.success("Draft saved");
     } catch (err) {
-      message.error("Failed to save draft");
+      const msg =
+        err?.data?.msg ||
+        err?.message ||
+        "Failed to save draft";
+      message.error(msg);
     }
   };
 

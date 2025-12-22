@@ -1,10 +1,11 @@
-// src/routes/EmployeeOnboardingRoute.jsx
 import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
 
 export default function EmployeeOnboardingRoute({ children }) {
   const { user, token } = useSelector((s) => s.auth);
-  console.log("🧭 EmployeeOnboardingRoute user =", user);
+  const onboardingStatus = useSelector((s) => s.onboarding.onboardingStatus);
+  const onboardingLoading = useSelector((s) => s.onboarding.status === "loading");
+  console.log("EmployeeOnboardingRoute user =", user);
 
   // 未登录 → 登录页
   if (!token) {
@@ -12,9 +13,9 @@ export default function EmployeeOnboardingRoute({ children }) {
     return <Navigate to="/login" replace />;
   }
 
-  // 仍在加载 /me → 显示 loading，而不是 null！
-  if (!user) {
-    console.log("→ user null, showing loading");
+  // 仍在加载 /me 或 onboarding → 显示 loading
+  if (!user || onboardingLoading) {
+    console.log("→ user/onboarding loading, showing loading");
     return (
       <div style={{ textAlign: "center", marginTop: 80 }}>
         Loading...
@@ -28,7 +29,7 @@ export default function EmployeeOnboardingRoute({ children }) {
   }
 
   // onboarding 已完成 → 自动跳 Dashboard
-  if (user.onboardingStatus === "approved") {
+  if (user.onboardingStatus === "approved" || onboardingStatus === "approved") {
     return <Navigate to="/dashboard" replace />;
   }
 

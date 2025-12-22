@@ -8,23 +8,29 @@ export default function PersonalDocumentsSection({ readOnly = false }) {
     <>
       <h3>Documents</h3>
 
-      <Form.Item
-        label="Driver's License"
-        name="driverLicenseUrl"
-        valuePropName="value"
-        shouldUpdate={readOnly}
-      >
-        {readOnly
-          ? ({ getFieldValue }) => {
-              const url = getFieldValue("driverLicenseUrl");
-              if (!url) return <Text type="secondary">Not uploaded</Text>;
-              return (
-                <Link href={url} target="_blank" rel="noreferrer">
-                  Preview / Download
-                </Link>
-              );
-            }
-          : <FileUploadField accept=".pdf,image/*" />}
+      <Form.Item label="Driver's License" shouldUpdate>
+        {({ getFieldValue }) => {
+          const url = getFieldValue("driverLicenseUrl");
+
+          if (readOnly) {
+            if (!url) return <Text type="secondary">Not uploaded</Text>;
+            return (
+              <Link href={url} target="_blank" rel="noreferrer">
+                Preview / Download
+              </Link>
+            );
+          }
+
+          return (
+            <Form.Item
+              noStyle
+              name="driverLicenseUrl"
+              valuePropName="value"
+            >
+              <FileUploadField accept=".pdf,image/*" />
+            </Form.Item>
+          );
+        }}
       </Form.Item>
 
       <Form.Item shouldUpdate noStyle>
@@ -44,21 +50,30 @@ export default function PersonalDocumentsSection({ readOnly = false }) {
           return (
             <Form.Item
               label="Work Authorization Document"
-              name={["visaInfo", "optReceiptUrl"]}
-              valuePropName="value"
-              shouldUpdate={readOnly}
+              shouldUpdate
             >
-              {readOnly
-                ? ({ getFieldValue }) => {
-                    const url = getFieldValue(["visaInfo", "optReceiptUrl"]);
-                    if (!url) return <Text type="secondary">Not uploaded</Text>;
-                    return (
-                      <Link href={url} target="_blank" rel="noreferrer">
-                        Preview / Download
-                      </Link>
-                    );
-                  }
-                : <FileUploadField accept=".pdf,image/*" />}
+              {({ getFieldValue }) => {
+                const url = getFieldValue(["visaInfo", "optReceiptUrl"]);
+
+                if (readOnly) {
+                  if (!url) return <Text type="secondary">Not uploaded</Text>;
+                  return (
+                    <Link href={url} target="_blank" rel="noreferrer">
+                      Preview / Download
+                    </Link>
+                  );
+                }
+
+                return (
+                  <Form.Item
+                    noStyle
+                    name={["visaInfo", "optReceiptUrl"]}
+                    valuePropName="value"
+                  >
+                    <FileUploadField accept=".pdf,image/*" />
+                  </Form.Item>
+                );
+              }}
             </Form.Item>
           );
         }}

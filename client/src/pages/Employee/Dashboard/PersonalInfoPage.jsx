@@ -1,5 +1,5 @@
 // src/pages/Employee/Dashboard/PersonalInfoPage.jsx
-import { Card, Spin, Form, Button, Space, Modal, message, Input } from "antd";
+import { Card, Spin, Form, Button, Space, message, Input, Alert, Divider, Popconfirm } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import dayjs from "dayjs";
@@ -15,7 +15,7 @@ import EmergencyContactsSection from "../../../components/Onboarding/EmergencyCo
 import PersonalDocumentsSection from "../../../components/Onboarding/PersonalDocumentsSection";
 
 export default function PersonalInfoPage() {
-  const { data: onboarding, status, loadOnboarding, saveOnboardingDraft } =
+  const { data: onboarding, status, error, loadOnboarding, saveOnboardingDraft } =
     useOnboarding();
   const [form] = Form.useForm();
   const { user } = useSelector((s) => s.auth);
@@ -56,8 +56,10 @@ export default function PersonalInfoPage() {
   };
 
   useEffect(() => {
-    loadOnboarding();
-  }, []);
+    if (!onboarding && status === "idle") {
+      loadOnboarding();
+    }
+  }, [onboarding, status, loadOnboarding]);
 
   useEffect(() => {
     if (!onboarding) return;
@@ -68,7 +70,15 @@ export default function PersonalInfoPage() {
     }
   }, [onboarding, form, isEditing]);
 
-  if (!onboarding || status === "loading") {
+  if (error) {
+    return (
+      <Card style={{ maxWidth: 900, margin: "40px auto" }}>
+        <Alert type="error" message={error} />
+      </Card>
+    );
+  }
+
+  if (!onboarding) {
     return (
       <div style={{ marginTop: 120, textAlign: "center" }}>
         <Spin size="large" />
@@ -123,17 +133,9 @@ export default function PersonalInfoPage() {
     }
   };
 
-  const cancelEdit = (key) => {
-    Modal.confirm({
-      title: "Discard changes?",
-      content: "Your changes will be lost.",
-      okText: "Yes",
-      cancelText: "No",
-      onOk: () => {
-        resetSection(key);
-        setEditing((prev) => ({ ...prev, [key]: false }));
-      },
-    });
+  const confirmCancel = (key) => {
+    resetSection(key);
+    setEditing((prev) => ({ ...prev, [key]: false }));
   };
 
   const buildPayload = (payload) => {
@@ -198,6 +200,9 @@ export default function PersonalInfoPage() {
 
       await saveOnboardingDraft(buildPayload(payload)).unwrap();
       message.success("Saved");
+      // 保存后更新基准值，便于后续取消时回滚到最新
+      const currentValues = form.getFieldsValue(true);
+      initialValuesRef.current = currentValues;
       setEditing((prev) => ({ ...prev, [key]: false }));
     } catch (err) {
       if (err?.errorFields) return;
@@ -208,15 +213,21 @@ export default function PersonalInfoPage() {
   };
 
   const email = user?.email || "";
-
   return (
     <Card
       title="Personal Information"
       style={{ maxWidth: 1000, margin: "0 auto" }}
     >
-      <Form layout="vertical" form={form}>
+      <Spin spinning={status === "loading"}>
+        <Form layout="vertical" form={form}>
         {/* ================= Name ================= */}
-        <Space style={{ marginBottom: 12 }}>
+        <BasicInfoSection readOnly={!editing.name} />
+        <ProfilePictureSection readOnly={!editing.name} />
+        <Form.Item label="Email">
+          <Input value={email} disabled />
+        </Form.Item>
+        <LegalSection readOnly={!editing.name} />
+        <Space style={{ margin: "8px 0 24px" }}>
           <Button
             onClick={() => startEdit("name")}
             disabled={isEditing || editing.name}
@@ -240,19 +251,24 @@ export default function PersonalInfoPage() {
               >
                 Save
               </Button>
-              <Button onClick={() => cancelEdit("name")}>Cancel</Button>
+              <Popconfirm
+                title="Discard changes?"
+                description="Your changes will be lost."
+                okText="Yes"
+                cancelText="No"
+                onConfirm={() => confirmCancel("name")}
+              >
+                <Button>Cancel</Button>
+              </Popconfirm>
             </>
           )}
         </Space>
-        <BasicInfoSection readOnly={!editing.name} />
-        <ProfilePictureSection readOnly={!editing.name} />
-        <Form.Item label="Email">
-          <Input value={email} disabled />
-        </Form.Item>
-        <LegalSection readOnly={!editing.name} />
+
+        <Divider />
 
         {/* ================= Address ================= */}
-        <Space style={{ margin: "16px 0 12px" }}>
+        <AddressSection readOnly={!editing.address} />
+        <Space style={{ margin: "8px 0 24px" }}>
           <Button
             onClick={() => startEdit("address")}
             disabled={isEditing || editing.address}
@@ -275,14 +291,27 @@ export default function PersonalInfoPage() {
               >
                 Save
               </Button>
-              <Button onClick={() => cancelEdit("address")}>Cancel</Button>
+              <Popconfirm
+                title="Discard changes?"
+                description="Your changes will be lost."
+                okText="Yes"
+                cancelText="No"
+                onConfirm={() => confirmCancel("address")}
+              >
+                <Button>Cancel</Button>
+              </Popconfirm>
             </>
           )}
         </Space>
-        <AddressSection readOnly={!editing.address} />
+
+        <Divider />
 
         {/* ================= Contact ================= */}
-        <Space style={{ margin: "16px 0 12px" }}>
+        <ContactSection
+          readOnly={!editing.contact}
+          showEmail={false}
+        />
+        <Space style={{ margin: "8px 0 24px" }}>
           <Button
             onClick={() => startEdit("contact")}
             disabled={isEditing || editing.contact}
@@ -303,17 +332,27 @@ export default function PersonalInfoPage() {
               >
                 Save
               </Button>
-              <Button onClick={() => cancelEdit("contact")}>Cancel</Button>
+              <Popconfirm
+                title="Discard changes?"
+                description="Your changes will be lost."
+                okText="Yes"
+                cancelText="No"
+                onConfirm={() => confirmCancel("contact")}
+              >
+                <Button>Cancel</Button>
+              </Popconfirm>
             </>
           )}
         </Space>
-        <ContactSection
-          readOnly={!editing.contact}
-          showEmail={false}
-        />
+
+        <Divider />
 
         {/* ================= Employment ================= */}
-        <Space style={{ margin: "16px 0 12px" }}>
+        <WorkAuthorizationSection
+          readOnly={!editing.employment}
+          showOptReceipt={false}
+        />
+        <Space style={{ margin: "8px 0 24px" }}>
           <Button
             onClick={() => startEdit("employment")}
             disabled={isEditing || editing.employment}
@@ -338,17 +377,24 @@ export default function PersonalInfoPage() {
               >
                 Save
               </Button>
-              <Button onClick={() => cancelEdit("employment")}>Cancel</Button>
+              <Popconfirm
+                title="Discard changes?"
+                description="Your changes will be lost."
+                okText="Yes"
+                cancelText="No"
+                onConfirm={() => confirmCancel("employment")}
+              >
+                <Button>Cancel</Button>
+              </Popconfirm>
             </>
           )}
         </Space>
-        <WorkAuthorizationSection
-          readOnly={!editing.employment}
-          showOptReceipt={false}
-        />
+
+        <Divider />
 
         {/* ================= Emergency Contacts ================= */}
-        <Space style={{ margin: "16px 0 12px" }}>
+        <EmergencyContactsSection readOnly={!editing.emergency} />
+        <Space style={{ margin: "8px 0 24px" }}>
           <Button
             onClick={() => startEdit("emergency")}
             disabled={isEditing || editing.emergency}
@@ -364,14 +410,24 @@ export default function PersonalInfoPage() {
               >
                 Save
               </Button>
-              <Button onClick={() => cancelEdit("emergency")}>Cancel</Button>
+              <Popconfirm
+                title="Discard changes?"
+                description="Your changes will be lost."
+                okText="Yes"
+                cancelText="No"
+                onConfirm={() => confirmCancel("emergency")}
+              >
+                <Button>Cancel</Button>
+              </Popconfirm>
             </>
           )}
         </Space>
-        <EmergencyContactsSection readOnly={!editing.emergency} />
+
+        <Divider />
 
         {/* ================= Documents ================= */}
-        <Space style={{ margin: "16px 0 12px" }}>
+        <PersonalDocumentsSection readOnly={!editing.documents} />
+        <Space style={{ margin: "8px 0 0" }}>
           <Button
             onClick={() => startEdit("documents")}
             disabled={isEditing || editing.documents}
@@ -392,12 +448,20 @@ export default function PersonalInfoPage() {
               >
                 Save
               </Button>
-              <Button onClick={() => cancelEdit("documents")}>Cancel</Button>
+              <Popconfirm
+                title="Discard changes?"
+                description="Your changes will be lost."
+                okText="Yes"
+                cancelText="No"
+                onConfirm={() => confirmCancel("documents")}
+              >
+                <Button>Cancel</Button>
+              </Popconfirm>
             </>
           )}
         </Space>
-        <PersonalDocumentsSection readOnly={!editing.documents} />
-      </Form>
+        </Form>
+      </Spin>
     </Card>
   );
 }

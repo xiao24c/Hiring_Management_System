@@ -19,6 +19,13 @@ export const fetchOnboarding = createAsyncThunk(
         err.response?.data?.msg || "Failed to load onboarding"
       );
     }
+  },
+  {
+    condition: (_, { getState }) => {
+      const state = getState();
+      // 避免重复请求：仅在 idle 时允许触发
+      return state.onboarding?.status === "idle";
+    },
   }
 );
 

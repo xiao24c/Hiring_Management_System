@@ -1,149 +1,109 @@
-# Hiring Management System (Employee Management Project)
+# Hiring Management System
 
-一个面向员工与 HR 的入职管理系统，覆盖注册、入职申请、文件上传、签证流程与 HR 审核。
+Employee & HR portal for onboarding, personal info, document upload, and visa management.
 
-## 技术栈
+## Tech Stack
 
-### 前端
-- React 18 + Vite
-- Redux Toolkit + React-Redux
-- React Router v6
-- Ant Design
-- Axios
+- Frontend: React 18 (Vite), Redux Toolkit, React Router v6, Ant Design, Axios
+- Backend: Node.js, Express, MongoDB + Mongoose, JWT auth, Nodemailer (emails), Multer (file upload)
 
-### 后端
-- Node.js + Express
-- MongoDB + Mongoose
-- JWT 鉴权
-- Nodemailer（邮件）
-- Multer（文件上传）
+## Features
 
-## 主要功能
+### Employees
+- Token-based registration (email locked)
+- Login with session persistence
+- Onboarding application: draft/save/submit, feedback/resubmit
+- Personal info page: sectioned edit/save/cancel with confirmation
+- File upload with preview/download (profile/ID/work auth)
+- Visa (F1 OPT) workflow: step-by-step submit/resubmit with HR feedback
 
-### 员工侧
-- Token 注册（邮箱锁定）
-- 登录与会话保持
-- 入职申请（草稿保存 / 提交 / 只读）
-- 个人信息分区编辑（编辑/保存/取消）
-- 真实文件上传 + 预览/下载
-- 签证流程（F1 OPT）分步上传与状态反馈
+### HR
+- Generate registration tokens + send email (3h expiry), token history
+- Onboarding review: view/approve/reject with feedback
+- Employee Profiles: search and view full profile
+- Visa management: In Progress/All, preview/download, approve/reject, notify employee
 
-### HR 侧
-- 注册 Token 生成 + 邮件发送
-- 入职申请审核（查看/批准/拒绝/反馈）
-- Employee Profiles 搜索与详情
-- Visa 管理（In Progress/All、预览/下载、批准/拒绝/提醒）
-
-## 项目结构（实际）
-
+## Project Structure
 ```
 Hiring_Management_System/
 ├── client/
 │   └── src/
+│       ├── api/
 │       ├── components/
+        ├── hooks/
 │       ├── pages/
 │       ├── routes/
-│       ├── store/
-│       └── api/
+│       └── store/
 └── server/
     ├── src/
     │   ├── controllers/
+    │   ├── middleware/
     │   ├── models/
     │   ├── routes/
-    │   ├── middleware/
     │   └── utils/
     ├── uploads/
     └── scripts/
 ```
 
-## 环境变量
-
-在 `server/.env` 配置：
-
+## Environment Variables (`server/.env`)
 ```env
 MONGODB_URI=mongodb://localhost:27017/hiring_management
 JWT_SECRET=your_jwt_secret
 
-# 邮件发送（可选，未配置则 console.log）
+# Email (optional; logs to console if missing)
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=your-email@gmail.com
 SMTP_PASS=your-app-password
 SMTP_FROM=your-email@gmail.com
 
-# 前端地址（生成注册链接）
+# Frontend URL for registration links
 FRONTEND_URL=http://localhost:5173
 
-# Seed 文件 URL 前缀（可选）
+# Optional seed file base
 SEED_FILE_BASE_URL=http://localhost:5050/uploads
 ```
-
-前端可选：
-
+Frontend optional:
 ```env
 VITE_FILE_BASE_URL=http://localhost:5050/uploads
 ```
 
-## 启动方式
-
-### 1) 安装依赖
-
+## Run
 ```bash
-cd server
-npm install
+# install
+cd server && npm install
+cd ../client && npm install
 
+# start backend
+cd ../server
+npm run dev  # http://localhost:5050
+
+# start frontend
 cd ../client
-npm install
+npm run dev   # http://localhost:5173
 ```
 
-### 2) 启动服务
-
+## Seed Data
 ```bash
 cd server
-npm run dev
-```
-后端默认运行在 `http://localhost:5050`。
-
-```bash
-cd client
-npm run dev
-```
-前端默认运行在 `http://localhost:5173`。
-
-## Seed 数据
-
-```bash
-cd server
-npm run seed
-# 或
+npm run seed        # full seed
 npm run seed:summary
 ```
+- Seeds demo users and sample files under `server/uploads`.
+- Default accounts: `adminHR / Test123!`, `reviewHR / Test123!`, employees `f1_user1 / Test123!` etc.
 
-Seed 会清空数据库并写入演示数据与示例文件（位于 `server/uploads`）。
+## File Uploads
+- Stored on disk under `server/uploads`
+- MongoDB stores file URLs (e.g., `http://localhost:5050/uploads/xxx.pdf`)
 
-### 默认账号（seedAll）
+## Key Routes
+- `/register?token=...` registration
+- `/login` login
+- `/onboarding` employee onboarding
+- `/dashboard` employee portal
+- `/hr` HR portal
+- `/hr/onboarding/:id` HR onboarding detail
 
-- HR: `adminHR / Test123!`
-- HR: `reviewHR / Test123!`
-- 员工：`f1_user1 / Test123!` 等
-
-## 文件上传说明
-
-- 文件存储在 `server/uploads` 目录
-- MongoDB 仅保存文件 URL
-- 访问路径形如 `http://localhost:5050/uploads/xxx.pdf`
-
-## 关键路由
-
-- `/register?token=...` 员工注册
-- `/login` 登录
-- `/onboarding` 入职申请
-- `/dashboard` 员工主页
-- `/hr` HR 主页
-- `/hr/onboarding/:id` HR 查看入职详情
-
-## 已知说明
-
-- 未配置 SMTP 时，邮件发送会输出到 console（便于本地调试）。
-- 如需正式邮件发送，请配置 SMTP 环境变量。
-
+## Notes
+- Without SMTP config, emails are logged to console for dev.
+- Configure SMTP for real email sending.

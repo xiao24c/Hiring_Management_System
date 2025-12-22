@@ -1,4 +1,3 @@
-// src/routes/AppRouter.jsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import LoginPage from "../pages/LoginPage/LoginPage";
 import RegisterPage from "../pages/RegisterPage/RegisterPage";
@@ -77,6 +76,7 @@ export default function AppRouter() {
 
         {/* Employee Profiles */}
         <Route path="employees" element={<EmployeeListPage />} />
+        <Route path="employees/:userId" element={<EmployeeDetailPage />} />
 
         {/* Visa Status Management */}
         <Route path="visa" element={<HRVisaListPage />} />
@@ -84,24 +84,8 @@ export default function AppRouter() {
 
         {/* Hiring Management */}
         <Route path="hiring" element={<HiringManagementPage />} />
+        <Route path="onboarding/:onboardingId" element={<OnboardingDetailPage />} />
       </Route>
-
-      <Route
-        path="/hr/onboarding/:onboardingId"
-        element={
-          <HRDashboardRoute>
-            <OnboardingDetailPage />
-          </HRDashboardRoute>
-        }
-      />
-      <Route
-        path="/hr/employees/:userId"
-        element={
-          <HRDashboardRoute>
-            <EmployeeDetailPage />
-          </HRDashboardRoute>
-        }
-      />
 
       {/* 兜底 */}
       <Route path="*" element={<Navigate to="/login" replace />} />

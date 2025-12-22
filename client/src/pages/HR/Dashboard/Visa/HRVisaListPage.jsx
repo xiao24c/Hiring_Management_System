@@ -127,6 +127,9 @@ export default function HRVisaListPage() {
       });
       message.success("Action completed");
       await load();
+      setReviewOpen(false);
+      setReviewRecord(null);
+      setReviewFeedback("");
     } finally {
       setActionLoading(false);
     }

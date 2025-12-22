@@ -1,5 +1,6 @@
 import { Card, Input, Table, Typography, Empty } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../../../api/axiosInstance";
 
 const { Title, Text, Link } = Typography;
@@ -8,6 +9,7 @@ export default function EmployeeListPage() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
     const load = async () => {
@@ -50,10 +52,7 @@ export default function EmployeeListPage() {
         const fullName = `${record.name?.firstName || ""} ${record.name?.lastName || ""}`.trim();
 
         return (
-          <Link
-            href={`/hr/employees/${record.userId}`}
-            target="_blank"
-          >
+          <Link onClick={() => navigate(`/hr/employees/${record.userId}`)}>
             {fullName || "—"}
           </Link>
         );

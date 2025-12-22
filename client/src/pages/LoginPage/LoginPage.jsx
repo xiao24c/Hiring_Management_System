@@ -1,4 +1,3 @@
-// src/pages/LoginPage/LoginPage.jsx
 import { useDispatch, useSelector } from "react-redux";
 import { login } from "../../store/authSlice";
 import { useEffect } from "react";

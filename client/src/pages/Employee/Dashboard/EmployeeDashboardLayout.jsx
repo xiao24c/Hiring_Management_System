@@ -1,5 +1,5 @@
 // src/pages/Employee/Dashboard/EmployeeDashboardLayout.jsx
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Layout, Menu, Spin } from "antd";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
@@ -24,11 +24,15 @@ export default function EmployeeDashboardLayout() {
     data: onboarding,
     status: onboardingStatus,
   } = useOnboarding();
+  const loadedRef = useRef(false);
 
   // 进入 dashboard 就加载 onboarding
   useEffect(() => {
-    loadOnboarding();
-  }, []);
+    if (!loadedRef.current) {
+      loadedRef.current = true;
+      loadOnboarding();
+    }
+  }, [loadOnboarding]);
 
   // onboarding 还没回来 → 不要渲染 menu
   if (!onboarding || onboardingStatus === "loading") {

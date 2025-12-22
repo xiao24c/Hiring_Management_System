@@ -1,6 +1,7 @@
 // server/src/controllers/hrOnboardingController.js
 
 import OnboardingApplication from "../models/OnboardingApplication.js";
+import VisaStatus from "../models/VisaStatus.js";
 
 /* ==========================================================
    1. HR — Get all onboarding applications (grouped)
@@ -77,6 +78,32 @@ export const approveOnboarding = async (req, res) => {
     app.feedback = ""; // clear any old feedback
     app.updatedAt = new Date();
     await app.save();
+
+    // If F1, seed visa workflow with OPT Receipt from onboarding (if provided)
+    const visaInfo = app.visaInfo || {};
+    const isF1 =
+      visaInfo.isCitizenOrPR === false &&
+      visaInfo.workAuthorization === "F1" &&
+      visaInfo.optReceiptUrl;
+
+    if (isF1) {
+      let visa = await VisaStatus.findOne({ userId: app.userId });
+      if (!visa) {
+        visa = await VisaStatus.create({ userId: app.userId });
+      }
+
+      // only set if not already approved
+      if (visa.optReceipt.status !== "approved") {
+        visa.optReceipt.fileUrl = visaInfo.optReceiptUrl;
+        // if previously rejected, keep status; otherwise mark pending
+        if (visa.optReceipt.status !== "rejected") {
+          visa.optReceipt.status = "pending";
+          visa.optReceipt.submittedAt = new Date();
+          visa.optReceipt.feedback = "";
+        }
+        await visa.save();
+      }
+    }
 
     res.json({
       msg: "Onboarding approved.",

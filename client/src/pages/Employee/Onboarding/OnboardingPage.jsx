@@ -1,4 +1,3 @@
-// src/pages/Employee/Onboarding/OnboardingPage.jsx
 import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Card, Alert, Spin, Button } from "antd";

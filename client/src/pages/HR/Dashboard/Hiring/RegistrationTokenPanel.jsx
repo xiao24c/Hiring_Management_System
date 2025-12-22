@@ -1,4 +1,3 @@
-// src/pages/HR/Dashboard/Hiring/RegistrationTokenPanel.jsx
 import { Card, Table, Button, Input, Space, Tag, Typography, Alert } from "antd";
 import { useEffect, useState } from "react";
 import api from "../../../../api/axiosInstance";

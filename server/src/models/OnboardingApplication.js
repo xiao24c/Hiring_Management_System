@@ -34,8 +34,8 @@ const LegalInfoSchema = new Schema({
   dateOfBirth: { type: Date, default: null },
   gender: {
     type: String,
-    enum: ["male", "female", "I don't wish to answer"],
-    default: "female"
+    enum: ["male", "female", "I don't wish to answer", ""],
+    default: ""
   }
 }, { _id: false });
 

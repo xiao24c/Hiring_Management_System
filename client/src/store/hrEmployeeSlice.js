@@ -2,10 +2,9 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import api from "../api/axiosInstance";
 
 /* =====================================================
-   THUNKS（异步 actions）
+   THUNKS
 ===================================================== */
 
-// HR 获取员工列表（summary）
 export const fetchEmployees = createAsyncThunk(
   "hrEmployees/fetchEmployees",
   async (_, thunkAPI) => {

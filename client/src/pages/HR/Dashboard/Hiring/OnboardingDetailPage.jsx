@@ -116,7 +116,16 @@ export default function OnboardingDetailPage() {
       title={`Onboarding Application — ${record.name?.firstName || ""} ${record.name?.lastName || ""}`}
       style={{ maxWidth: 1000, margin: "24px auto" }}
       extra={
-        <Button onClick={() => navigate("/hr/hiring")}>
+        <Button
+          onClick={() =>
+            navigate("/hr/hiring", {
+              state: {
+                activeTab: "onboarding",
+                onboardingStatusTab: record.status || "pending",
+              },
+            })
+          }
+        >
           Back to Hiring
         </Button>
       }

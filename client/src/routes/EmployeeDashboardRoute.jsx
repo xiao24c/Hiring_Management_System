@@ -1,4 +1,3 @@
-// src/routes/EmployeeDashboardRoute.jsx
 import { useSelector } from "react-redux";
 import { Navigate } from "react-router-dom";
 
@@ -25,6 +24,5 @@ export default function EmployeeDashboardRoute({ children }) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  // ✅ OK
   return children;
 }

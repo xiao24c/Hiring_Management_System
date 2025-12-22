@@ -77,7 +77,11 @@ export default function HRVisaDetailPage() {
       feedback,
     });
     setFeedback("");
-    load();
+    if (action === "approve" || action === "reject") {
+      navigate(-1);
+    } else {
+      load();
+    }
   };
 
   return (

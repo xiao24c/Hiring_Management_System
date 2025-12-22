@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Card, Spin, Alert, Divider, Form, Button } from "antd";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+import dayjs from "dayjs";
 
 import { fetchEmployeeDetail } from "../../../../store/hrEmployeeSlice";
 
@@ -31,11 +32,25 @@ export default function EmployeeDetailPage() {
 
   useEffect(() => {
     if (employee?.onboarding) {
-      form.setFieldsValue(employee.onboarding);
+      const { legalInfo, visaInfo, ...rest } = employee.onboarding;
+      form.setFieldsValue({
+        ...rest,
+        legalInfo: {
+          ...legalInfo,
+          dateOfBirth: legalInfo?.dateOfBirth
+            ? dayjs(legalInfo.dateOfBirth)
+            : null,
+        },
+        visaInfo: {
+          ...visaInfo,
+          startDate: visaInfo?.startDate ? dayjs(visaInfo.startDate) : null,
+          endDate: visaInfo?.endDate ? dayjs(visaInfo.endDate) : null,
+        },
+      });
     }
   }, [employee, form]);
 
-  if (status === "loading" || !employee) {
+  if (status === "loading" && !employee) {
     return (
       <div style={{ marginTop: 120, textAlign: "center" }}>
         <Spin size="large" />
@@ -43,10 +58,13 @@ export default function EmployeeDetailPage() {
     );
   }
 
-  if (error) {
+  if (error || !employee) {
     return (
       <Card style={{ maxWidth: 900, margin: "40px auto" }}>
-        <Alert type="error" message={error} />
+        <Alert type="error" message={error || "Employee not found"} />
+        <Button style={{ marginTop: 12 }} onClick={() => navigate("/hr/employees")}>
+          Back to Employees
+        </Button>
       </Card>
     );
   }

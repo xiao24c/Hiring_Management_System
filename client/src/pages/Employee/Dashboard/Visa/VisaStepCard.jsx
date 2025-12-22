@@ -1,7 +1,7 @@
-import { Card, Tag, Button, Space, Alert, Typography } from "antd";
+import { Card, Tag, Button, Space, Alert, Typography, message } from "antd";
 import { useDispatch } from "react-redux";
 import { useState } from "react";
-import { submitVisaStep } from "../../../../store/visaSlice";
+import { submitVisaStep, fetchVisaStatus } from "../../../../store/visaSlice";
 import FileUploadField from "../../../../components/shared/FileUploadField";
 
 const { Link, Text } = Typography;
@@ -45,16 +45,35 @@ export default function VisaStepCard({
   const status = step?.status || "not_submitted";
 
   const canSubmit =
-    isActive && (status === "not_submitted" || status === "rejected");
+    isActive &&
+    (status === "rejected" ||
+      (status === "not_submitted" &&
+        (stepKey !== "optReceipt" || !step?.fileUrl)));
+  const missingFile = !fileUrl;
 
   const handleSubmit = () => {
+    if (missingFile) {
+      message.warning("Please upload a file before submitting.");
+      return;
+    }
+
     dispatch(
       submitVisaStep({
         stepKey,
         status,
         fileUrl,
       })
-    );
+    )
+      .unwrap()
+      .then(() => {
+        dispatch(fetchVisaStatus());
+        message.success(
+          status === "rejected" ? "Resubmitted" : "Submitted"
+        );
+      })
+      .catch((err) => {
+        message.error(err || "Submit failed");
+      });
   };
 
   return (
@@ -102,6 +121,15 @@ export default function VisaStepCard({
         />
       )}
 
+      {canSubmit && missingFile && (
+        <Alert
+          type="warning"
+          message="File required"
+          description="Please upload a document before submitting."
+          style={{ marginBottom: 12 }}
+        />
+      )}
+
       <div style={{ marginBottom: 12 }}>
         <FileUploadField
           value={fileUrl}
@@ -113,7 +141,11 @@ export default function VisaStepCard({
       </div>
 
       {canSubmit && (
-        <Button type="primary" onClick={handleSubmit}>
+        <Button
+          type="primary"
+          onClick={handleSubmit}
+          disabled={missingFile}
+        >
           {status === "rejected" ? "Resubmit" : "Submit"}
         </Button>
       )}

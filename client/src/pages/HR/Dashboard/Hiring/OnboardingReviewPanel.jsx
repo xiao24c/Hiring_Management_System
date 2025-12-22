@@ -1,4 +1,3 @@
-// src/pages/HR/Dashboard/Hiring/OnboardingReviewPanel.jsx
 import {
   Tabs,
   Table,
@@ -10,13 +9,18 @@ import {
   message,
 } from "antd";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../../../api/axiosInstance";
 
 const { TabPane } = Tabs;
 const { TextArea } = Input;
 const { Text } = Typography;
 
-export default function OnboardingReviewPanel() {
+export default function OnboardingReviewPanel({
+  initialStatusTab = "pending",
+  onStatusTabChange,
+}) {
+  const navigate = useNavigate();
   const [data, setData] = useState({
     pending: [],
     approved: [],
@@ -74,7 +78,12 @@ export default function OnboardingReviewPanel() {
           <Button
             type="link"
             onClick={() =>
-              window.open(`/hr/onboarding/${r._id}`, "_blank")
+              navigate(`/hr/onboarding/${r._id}`, {
+                state: {
+                  activeTab: "onboarding",
+                  onboardingStatusTab: status,
+                },
+              })
             }
           >
             View Application
@@ -97,7 +106,10 @@ export default function OnboardingReviewPanel() {
 
   return (
     <>
-      <Tabs defaultActiveKey="pending">
+      <Tabs
+        activeKey={initialStatusTab}
+        onChange={(key) => onStatusTabChange?.(key)}
+      >
         <TabPane tab={`Pending (${data.pending.length})`} key="pending">
           <Table
             rowKey="_id"
